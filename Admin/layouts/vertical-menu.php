@@ -299,6 +299,15 @@
                     </a>
                 </li>
 
+                <?php if (isset($_SESSION["role_id"]) && (int) $_SESSION["role_id"] === 1): ?>
+                <li>
+                    <a href="admin-users-list.php">
+                        <i data-feather="user-check"></i>
+                        <span>Usuarios</span>
+                    </a>
+                </li>
+                <?php endif; ?>
+
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>

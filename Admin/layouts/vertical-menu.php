@@ -330,6 +330,34 @@
                 </li>
 
                 <li>
+                    <a href="admin-brands-list.php">
+                        <i data-feather="tag"></i>
+                        <span>Marcas</span>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="admin-clients-list.php">
+                        <i data-feather="users"></i>
+                        <span>Clientes</span>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="admin-kits-list.php">
+                        <i data-feather="gift"></i>
+                        <span>Kits</span>
+                    </a>
+                </li>
+
+                <li>
+                    <a href="admin-deliveries-list.php">
+                        <i data-feather="send"></i>
+                        <span>Entregas</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
                         <span data-key="t-apps"><?php echo $language["Apps"]; ?></span>

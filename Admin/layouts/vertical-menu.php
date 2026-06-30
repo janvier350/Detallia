@@ -316,6 +316,13 @@
                 </li>
 
                 <li>
+                    <a href="admin-articles-list.php">
+                        <i data-feather="package"></i>
+                        <span>Articulos</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
                         <span data-key="t-apps"><?php echo $language["Apps"]; ?></span>

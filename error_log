@@ -1,0 +1,6 @@
+[30-Jun-2026 12:23:12 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'root'@'localhost' (using password: NO) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10
+[30-Jun-2026 12:26:30 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'root'@'localhost' (using password: NO) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10
+[30-Jun-2026 12:44:08 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'buadnet_detallia_user'@'localhost' (using password: YES) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10
+[30-Jun-2026 12:57:21 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'buadnet_detallia_user'@'localhost' (using password: YES) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10
+[30-Jun-2026 12:57:35 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'buadnet_detallia_user'@'localhost' (using password: YES) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10
+[30-Jun-2026 12:59:47 UTC] PHP Warning:  mysqli_connect(): (HY000/1045): Access denied for user 'buadnet_detallia_user'@'localhost' (using password: YES) in /home/buadnetc/public_html/Detallia/Starterkit/layouts/config.php on line 10

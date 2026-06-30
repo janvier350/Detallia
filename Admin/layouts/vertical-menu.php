@@ -323,6 +323,13 @@
                 </li>
 
                 <li>
+                    <a href="admin-purchases-list.php">
+                        <i data-feather="shopping-cart"></i>
+                        <span>Compras</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
                         <span data-key="t-apps"><?php echo $language["Apps"]; ?></span>

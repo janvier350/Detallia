@@ -13,36 +13,38 @@ $error_msg = "";
 // CREAR / EDITAR cliente
 // ---------------------------------------------------------------
 if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "save") {
-    $client_id         = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
-    $name              = trim($_POST["name"] ?? "");
-    $brand_id          = (int) ($_POST["brand_id"] ?? 0);
-    $classification_id = (int) ($_POST["classification_id"] ?? 0);
-    $contact_name      = trim($_POST["contact_name"] ?? "");
-    $phone             = trim($_POST["phone"] ?? "");
-    $email             = trim($_POST["email"] ?? "");
-    $address           = trim($_POST["address"] ?? "");
-    $notes             = trim($_POST["notes"] ?? "");
-    $status            = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
+    $client_id    = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
+    $name         = trim($_POST["name"] ?? "");
+    $contact_name = trim($_POST["contact_name"] ?? "");
+    $address      = trim($_POST["address"] ?? "");
+    $ciudad       = trim($_POST["ciudad"] ?? "");
+    $provincia    = trim($_POST["provincia"] ?? "");
+    $phone        = trim($_POST["phone"] ?? "");
+    $email        = trim($_POST["email"] ?? "");
+    $notes        = trim($_POST["notes"] ?? "");
+    $status       = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
 
-    $brand_id = $brand_id > 0 ? $brand_id : null;
-
-    if ($name === "" || $classification_id <= 0) {
-        $error_msg = "El nombre y la clasificacion son obligatorios.";
+    if ($name === "") {
+        $error_msg = "El nombre de la empresa es obligatorio.";
     } else {
         if ($client_id > 0) {
-            $sql  = "UPDATE clients SET name=?, brand_id=?, classification_id=?, contact_name=?, phone=?, email=?, address=?, notes=?, status=? WHERE id=?";
+            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, provincia=?, phone=?, email=?, notes=?, status=? WHERE id=?";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "siissssssi", $name, $brand_id, $classification_id, $contact_name, $phone, $email, $address, $notes, $status, $client_id);
+            mysqli_stmt_bind_param($stmt, "sssssssssi", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $client_id);
         } else {
-            $sql  = "INSERT INTO clients (name, brand_id, classification_id, contact_name, phone, email, address, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, provincia, phone, email, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "siissssss", $name, $brand_id, $classification_id, $contact_name, $phone, $email, $address, $notes, $status);
+            mysqli_stmt_bind_param($stmt, "sssssssss", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
             $success_msg = $client_id > 0 ? "Cliente actualizado correctamente." : "Cliente creado correctamente.";
         } else {
-            $error_msg = "No se pudo guardar el cliente: " . mysqli_error($link);
+            if (mysqli_errno($link) == 1062) {
+                $error_msg = "Ya existe un cliente registrado con ese nombre de empresa.";
+            } else {
+                $error_msg = "No se pudo guardar el cliente: " . mysqli_error($link);
+            }
         }
     }
 }
@@ -69,27 +71,24 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 }
 
 // ---------------------------------------------------------------
-// Filtro por clasificacion
+// Filtro por provincia
 // ---------------------------------------------------------------
-$filter_classification = isset($_GET["classification_id"]) ? (int) $_GET["classification_id"] : 0;
+$filter_provincia = trim($_GET["provincia"] ?? "");
 
-$sql_clients = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.status,
-                       b.name AS brand_name, cc.name AS classification_name
-                FROM clients c
-                LEFT JOIN brands b ON b.id = c.brand_id
-                JOIN client_classifications cc ON cc.id = c.classification_id";
-
-if ($filter_classification > 0) {
-    $stmt_c = mysqli_prepare($link, $sql_clients . " WHERE c.classification_id = ? ORDER BY c.name ASC");
-    mysqli_stmt_bind_param($stmt_c, "i", $filter_classification);
+if ($filter_provincia !== "") {
+    $stmt_c = mysqli_prepare($link, "SELECT id, name, contact_name, phone, email, address, ciudad, provincia, status FROM clients WHERE provincia = ? ORDER BY name ASC");
+    mysqli_stmt_bind_param($stmt_c, "s", $filter_provincia);
     mysqli_stmt_execute($stmt_c);
     $clients = mysqli_stmt_get_result($stmt_c);
 } else {
-    $clients = mysqli_query($link, $sql_clients . " ORDER BY c.name ASC");
+    $clients = mysqli_query($link, "SELECT id, name, contact_name, phone, email, address, ciudad, provincia, status FROM clients ORDER BY name ASC");
 }
 
-$brands          = mysqli_query($link, "SELECT id, name FROM brands WHERE status = 'activo' ORDER BY name");
-$classifications = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY id");
+$provincias_res = mysqli_query($link, "SELECT DISTINCT provincia FROM clients WHERE provincia IS NOT NULL AND provincia <> '' ORDER BY provincia");
+$provincias = [];
+while ($p = mysqli_fetch_row($provincias_res)) {
+    $provincias[] = $p[0];
+}
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -152,34 +151,36 @@ $classifications = mysqli_query($link, "SELECT id, name FROM client_classificati
                                     <?php endif; ?>
                                 </div>
 
+                                <?php if (!empty($provincias)): ?>
                                 <form method="get" class="row g-2 mb-3">
                                     <div class="col-auto">
-                                        <select name="classification_id" class="form-select" onchange="this.form.submit()">
-                                            <option value="0">Todas las clasificaciones</option>
-                                            <?php mysqli_data_seek($classifications, 0); while ($cl = mysqli_fetch_assoc($classifications)): ?>
-                                                <option value="<?php echo (int) $cl["id"]; ?>" <?php echo $filter_classification == $cl["id"] ? "selected" : ""; ?>>
-                                                    <?php echo htmlspecialchars($cl["name"]); ?>
+                                        <select name="provincia" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las provincias</option>
+                                            <?php foreach ($provincias as $prov): ?>
+                                                <option value="<?php echo htmlspecialchars($prov); ?>" <?php echo $filter_provincia === $prov ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($prov); ?>
                                                 </option>
-                                            <?php endwhile; ?>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <?php if ($filter_classification): ?>
+                                    <?php if ($filter_provincia !== ""): ?>
                                         <div class="col-auto">
                                             <a href="admin-clients-list.php" class="btn btn-light">Limpiar filtro</a>
                                         </div>
                                     <?php endif; ?>
                                 </form>
+                                <?php endif; ?>
 
                                 <div class="table-responsive">
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
-                                                <th>Nombre</th>
-                                                <th>Marca / Empresa</th>
-                                                <th>Clasificacion</th>
+                                                <th>Empresa</th>
                                                 <th>Contacto</th>
                                                 <th>Telefono</th>
+                                                <th>Ciudad</th>
+                                                <th>Provincia</th>
                                                 <th>Estado</th>
                                                 <?php if ($can_edit): ?><th class="text-end">Acciones</th><?php endif; ?>
                                             </tr>
@@ -189,19 +190,10 @@ $classifications = mysqli_query($link, "SELECT id, name FROM client_classificati
                                                 <tr>
                                                     <td><?php echo (int) $c["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($c["name"]); ?></td>
-                                                    <td><?php echo htmlspecialchars($c["brand_name"] ?? "—"); ?></td>
-                                                    <td>
-                                                        <?php
-                                                        $badge = match($c["classification_name"]) {
-                                                            "VIP"      => "danger",
-                                                            "Frecuente" => "warning",
-                                                            default    => "secondary",
-                                                        };
-                                                        ?>
-                                                        <span class="badge bg-<?php echo $badge; ?>"><?php echo htmlspecialchars($c["classification_name"]); ?></span>
-                                                    </td>
                                                     <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["phone"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["ciudad"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["provincia"] ?? ""); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $c["status"] === 'activo' ? 'success' : 'secondary'; ?>">
                                                             <?php echo htmlspecialchars($c["status"]); ?>
@@ -254,33 +246,28 @@ $classifications = mysqli_query($link, "SELECT id, name FROM client_classificati
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Nombre del cliente</label>
+                        <label class="form-label">Nombre de la empresa <span class="text-danger">*</span></label>
                         <input type="text" name="name" id="client_name" class="form-control" required>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Marca / Empresa</label>
-                        <select name="brand_id" id="client_brand_id" class="form-select">
-                            <option value="">Sin marca</option>
-                            <?php mysqli_data_seek($brands, 0); while ($br = mysqli_fetch_assoc($brands)): ?>
-                                <option value="<?php echo (int) $br["id"]; ?>"><?php echo htmlspecialchars($br["name"]); ?></option>
-                            <?php endwhile; ?>
-                        </select>
+                        <label class="form-label">Contacto (persona que recibe)</label>
+                        <input type="text" name="contact_name" id="client_contact_name" class="form-control">
                     </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Direccion</label>
+                    <input type="text" name="address" id="client_address" class="form-control">
                 </div>
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Clasificacion</label>
-                        <select name="classification_id" id="client_classification_id" class="form-select" required>
-                            <option value="">Selecciona...</option>
-                            <?php mysqli_data_seek($classifications, 0); while ($cl = mysqli_fetch_assoc($classifications)): ?>
-                                <option value="<?php echo (int) $cl["id"]; ?>"><?php echo htmlspecialchars($cl["name"]); ?></option>
-                            <?php endwhile; ?>
-                        </select>
+                        <label class="form-label">Ciudad</label>
+                        <input type="text" name="ciudad" id="client_ciudad" class="form-control">
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Nombre de contacto</label>
-                        <input type="text" name="contact_name" id="client_contact_name" class="form-control">
+                        <label class="form-label">Provincia</label>
+                        <input type="text" name="provincia" id="client_provincia" class="form-control">
                     </div>
                 </div>
 
@@ -293,11 +280,6 @@ $classifications = mysqli_query($link, "SELECT id, name FROM client_classificati
                         <label class="form-label">Email</label>
                         <input type="email" name="email" id="client_email" class="form-control">
                     </div>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Direccion</label>
-                    <input type="text" name="address" id="client_address" class="form-control">
                 </div>
 
                 <div class="mb-3">
@@ -333,12 +315,12 @@ function openCreateModal() {
     document.getElementById('clientModalLabel').innerText = 'Nuevo cliente';
     document.getElementById('client_id').value = '';
     document.getElementById('client_name').value = '';
-    document.getElementById('client_brand_id').value = '';
-    document.getElementById('client_classification_id').value = '';
     document.getElementById('client_contact_name').value = '';
+    document.getElementById('client_address').value = '';
+    document.getElementById('client_ciudad').value = '';
+    document.getElementById('client_provincia').value = '';
     document.getElementById('client_phone').value = '';
     document.getElementById('client_email').value = '';
-    document.getElementById('client_address').value = '';
     document.getElementById('client_notes').value = '';
     document.getElementById('client_status').value = 'activo';
 }
@@ -347,12 +329,12 @@ function openEditModal(c) {
     document.getElementById('clientModalLabel').innerText = 'Editar cliente';
     document.getElementById('client_id').value = c.id;
     document.getElementById('client_name').value = c.name;
-    document.getElementById('client_brand_id').value = c.brand_id || '';
-    document.getElementById('client_classification_id').value = c.classification_id || '';
     document.getElementById('client_contact_name').value = c.contact_name || '';
+    document.getElementById('client_address').value = c.address || '';
+    document.getElementById('client_ciudad').value = c.ciudad || '';
+    document.getElementById('client_provincia').value = c.provincia || '';
     document.getElementById('client_phone').value = c.phone || '';
     document.getElementById('client_email').value = c.email || '';
-    document.getElementById('client_address').value = c.address || '';
     document.getElementById('client_notes').value = c.notes || '';
     document.getElementById('client_status').value = c.status;
 

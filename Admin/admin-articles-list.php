@@ -43,7 +43,6 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "save") {
     $article_id  = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
     $name        = trim($_POST["name"] ?? "");
-    $sku         = trim($_POST["sku"] ?? "");
     $category_id = (int) ($_POST["category_id"] ?? 0);
     $brand_id    = (int) ($_POST["brand_id"] ?? 0);
     $unit        = trim($_POST["unit"] ?? "unidad");
@@ -52,7 +51,6 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 
     $category_id = $category_id > 0 ? $category_id : null;
     $brand_id    = $brand_id > 0 ? $brand_id : null;
-    $sku = $sku !== "" ? $sku : null;
 
     // Manejo de imagen
     $new_image_path = null;
@@ -91,28 +89,24 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
                     $oldfile = __DIR__ . '/' . $oldrow["image_path"];
                     if (file_exists($oldfile)) @unlink($oldfile);
                 }
-                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, brand_id=?, unit=?, description=?, status=?, image_path=? WHERE id=?";
+                $sql  = "UPDATE articles SET name=?, category_id=?, brand_id=?, unit=?, description=?, status=?, image_path=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "ssiissssi", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $new_image_path, $article_id);
+                mysqli_stmt_bind_param($stmt, "siissssi", $name, $category_id, $brand_id, $unit, $description, $status, $new_image_path, $article_id);
             } else {
-                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, brand_id=?, unit=?, description=?, status=? WHERE id=?";
+                $sql  = "UPDATE articles SET name=?, category_id=?, brand_id=?, unit=?, description=?, status=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "ssiisssi", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $article_id);
+                mysqli_stmt_bind_param($stmt, "siisssi", $name, $category_id, $brand_id, $unit, $description, $status, $article_id);
             }
         } else {
-            $sql  = "INSERT INTO articles (name, sku, category_id, brand_id, unit, description, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO articles (name, category_id, brand_id, unit, description, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssiissss", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $new_image_path);
+            mysqli_stmt_bind_param($stmt, "siissss", $name, $category_id, $brand_id, $unit, $description, $status, $new_image_path);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
             $success_msg = $article_id > 0 ? "Articulo actualizado correctamente." : "Articulo creado correctamente.";
         } else {
-            if (mysqli_errno($link) == 1062) {
-                $error_msg = "Ya existe un articulo con ese SKU.";
-            } else {
-                $error_msg = "No se pudo guardar el articulo: " . mysqli_error($link);
-            }
+            $error_msg = "No se pudo guardar el articulo: " . mysqli_error($link);
         }
     }
 }
@@ -151,7 +145,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 $categories = mysqli_query($link, "SELECT id, name FROM article_categories ORDER BY name");
 $brands     = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
 
-$articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.description, a.image_path, a.status, a.created_at,
+$articles = mysqli_query($link, "SELECT a.id, a.name, a.unit, a.description, a.image_path, a.status, a.created_at,
                                          c.id AS category_id, c.name AS category_name,
                                          b.id AS brand_id, b.name AS brand_name,
                                          COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
@@ -230,7 +224,6 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                 <th style="width:60px">Imagen</th>
                                                 <th>#</th>
                                                 <th>Nombre</th>
-                                                <th>SKU</th>
                                                 <th>Categoria</th>
                                                 <th>Marca</th>
                                                 <th>Unidad</th>
@@ -259,7 +252,6 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                     </td>
                                                     <td><?php echo (int) $a["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($a["name"]); ?></td>
-                                                    <td><?php echo htmlspecialchars($a["sku"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($a["category_name"] ?? "Sin categoria"); ?></td>
                                                     <td><?php echo htmlspecialchars($a["brand_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($a["unit"]); ?></td>
@@ -323,11 +315,6 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                 <div class="mb-3">
                     <label class="form-label">Nombre del articulo</label>
                     <input type="text" name="name" id="article_name" class="form-control" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">SKU / Codigo</label>
-                    <input type="text" name="sku" id="article_sku" class="form-control">
                 </div>
 
                 <div class="mb-3">
@@ -453,7 +440,6 @@ function openCreateModal() {
     document.getElementById('articleModalLabel').innerText = 'Nuevo articulo';
     document.getElementById('article_id').value = '';
     document.getElementById('article_name').value = '';
-    document.getElementById('article_sku').value = '';
     document.getElementById('article_category_id').value = '';
     document.getElementById('article_brand_id').value = '';
     document.getElementById('article_unit').value = 'unidad';
@@ -468,7 +454,6 @@ function openEditModal(article) {
     document.getElementById('articleModalLabel').innerText = 'Editar articulo';
     document.getElementById('article_id').value = article.id;
     document.getElementById('article_name').value = article.name;
-    document.getElementById('article_sku').value = article.sku || '';
     document.getElementById('article_category_id').value = article.category_id || '';
     document.getElementById('article_brand_id').value = article.brand_id || '';
     document.getElementById('article_unit').value = article.unit;

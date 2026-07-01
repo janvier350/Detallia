@@ -4,8 +4,6 @@ require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_role([1, 2, 3]);
 
-$can_delete = in_array((int) $_SESSION["role_id"], [1, 2], true);
-
 $success_msg = "";
 $error_msg = "";
 
@@ -18,32 +16,8 @@ if (isset($_SESSION["flash_error"])) {
     unset($_SESSION["flash_error"]);
 }
 
-// ---------------------------------------------------------------
-// ELIMINAR entrega
-// ---------------------------------------------------------------
-if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
-    $delivery_id = (int) ($_POST["id"] ?? 0);
-    if ($delivery_id > 0) {
-        mysqli_begin_transaction($link);
-        try {
-            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'entrega' AND reference_id = ?");
-            mysqli_stmt_bind_param($delMov, "i", $delivery_id);
-            mysqli_stmt_execute($delMov);
-
-            $stmt = mysqli_prepare($link, "DELETE FROM kit_deliveries WHERE id = ?");
-            mysqli_stmt_bind_param($stmt, "i", $delivery_id);
-            if (!mysqli_stmt_execute($stmt)) {
-                throw new Exception(mysqli_error($link));
-            }
-
-            mysqli_commit($link);
-            $success_msg = "Entrega eliminada correctamente.";
-        } catch (Exception $e) {
-            mysqli_rollback($link);
-            $error_msg = "No se pudo eliminar la entrega: " . $e->getMessage();
-        }
-    }
-}
+// Las entregas son registros de auditoria: una vez guardadas no se pueden
+// editar ni eliminar, para evitar adulteraciones del historial de entregas.
 
 // ---------------------------------------------------------------
 // Filtros
@@ -213,18 +187,6 @@ $kits_filter    = mysqli_query($link, "SELECT id, name FROM kits ORDER BY name")
                                                         <a href="admin-delivery-print.php?id=<?php echo (int) $d["id"]; ?>" target="_blank" class="btn btn-sm btn-soft-secondary">
                                                             <i class="mdi mdi-printer"></i>
                                                         </a>
-                                                        <a href="admin-delivery-form.php?id=<?php echo (int) $d["id"]; ?>" class="btn btn-sm btn-soft-primary">
-                                                            <i class="mdi mdi-pencil"></i>
-                                                        </a>
-                                                        <?php if ($can_delete): ?>
-                                                            <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta entrega?');">
-                                                                <input type="hidden" name="action" value="delete">
-                                                                <input type="hidden" name="id" value="<?php echo (int) $d["id"]; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-soft-danger">
-                                                                    <i class="mdi mdi-delete"></i>
-                                                                </button>
-                                                            </form>
-                                                        <?php endif; ?>
                                                     </td>
                                                 </tr>
                                             <?php endwhile; ?>

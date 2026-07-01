@@ -5,14 +5,20 @@ require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
 require_role([1, 2, 3]);
 
-$delivery_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
-$error_msg   = "";
+// Las entregas son registros de auditoria: una vez guardadas no se pueden
+// editar, por lo que esta pagina solo admite el registro de entregas nuevas.
+if (isset($_GET["id"]) || (isset($_POST["id"]) && (int) $_POST["id"] > 0)) {
+    header("location: admin-deliveries-list.php");
+    exit;
+}
+
+$error_msg = "";
 
 // ---------------------------------------------------------------
-// GUARDAR entrega (crear o editar)
+// GUARDAR entrega (registro nuevo unicamente; las entregas ya
+// guardadas no se pueden editar, para evitar adulteraciones)
 // ---------------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $form_id            = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
     $kit_id             = (int) ($_POST["kit_id"] ?? 0);
     $client_id          = (int) ($_POST["client_id"] ?? 0);
     $management_type_id = (int) ($_POST["management_type_id"] ?? 0);
@@ -27,29 +33,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         mysqli_begin_transaction($link);
         try {
-            if ($form_id > 0) {
-                $sql  = "UPDATE kit_deliveries SET kit_id=?, client_id=?, management_type_id=?, delivery_date=?, notes=? WHERE id=?";
-                $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "iiissi", $kit_id, $client_id, $management_type_id, $delivery_date, $notes, $form_id);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception(mysqli_error($link));
-                }
-                $target_id = $form_id;
-            } else {
-                $sql  = "INSERT INTO kit_deliveries (kit_id, client_id, management_type_id, delivery_date, delivered_by, notes) VALUES (?, ?, ?, ?, ?, ?)";
-                $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "iiisis", $kit_id, $client_id, $management_type_id, $delivery_date, $delivered_by, $notes);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception(mysqli_error($link));
-                }
-                $target_id = mysqli_insert_id($link);
+            $sql  = "INSERT INTO kit_deliveries (kit_id, client_id, management_type_id, delivery_date, delivered_by, notes) VALUES (?, ?, ?, ?, ?, ?)";
+            $stmt = mysqli_prepare($link, $sql);
+            mysqli_stmt_bind_param($stmt, "iiisis", $kit_id, $client_id, $management_type_id, $delivery_date, $delivered_by, $notes);
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception(mysqli_error($link));
             }
+            $target_id = mysqli_insert_id($link);
 
-            // Reconstruir movimientos de stock (salida) segun el contenido del kit
-            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'entrega' AND reference_id = ?");
-            mysqli_stmt_bind_param($delMov, "i", $target_id);
-            mysqli_stmt_execute($delMov);
-
+            // Registrar movimientos de stock (salida) segun el contenido del kit
             $kitItemsRes = mysqli_prepare($link, "SELECT article_id, quantity FROM kit_items WHERE kit_id = ?");
             mysqli_stmt_bind_param($kitItemsRes, "i", $kit_id);
             mysqli_stmt_execute($kitItemsRes);
@@ -65,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
 
             mysqli_commit($link);
-            $_SESSION["flash_success"] = $form_id > 0 ? "Entrega actualizada correctamente." : "Entrega registrada correctamente.";
+            $_SESSION["flash_success"] = "Entrega registrada correctamente.";
             header("location: admin-deliveries-list.php");
             exit;
         } catch (Exception $e) {
@@ -75,22 +67,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $delivery = [
-        "id" => $form_id, "kit_id" => $kit_id, "client_id" => $client_id,
+        "id" => 0, "kit_id" => $kit_id, "client_id" => $client_id,
         "management_type_id" => $management_type_id, "delivery_date" => $delivery_date, "notes" => $notes,
     ];
 } else {
     $delivery = ["id" => 0, "kit_id" => 0, "client_id" => 0, "management_type_id" => 0, "delivery_date" => date("Y-m-d"), "notes" => ""];
-
-    if ($delivery_id > 0) {
-        $stmt = mysqli_prepare($link, "SELECT id, kit_id, client_id, management_type_id, delivery_date, notes FROM kit_deliveries WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, "i", $delivery_id);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $row = mysqli_fetch_assoc($res);
-        if ($row) {
-            $delivery = $row;
-        }
-    }
 }
 
 $kits             = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activo' ORDER BY name") ?: false;
@@ -235,13 +216,6 @@ if ($res) {
                                 <div id="kitPreview">
                                     <p class="text-muted">Selecciona un kit para ver su contenido.</p>
                                 </div>
-                                <?php if ((int) $delivery["id"] > 0): ?>
-                                    <div class="mt-3">
-                                        <a href="admin-delivery-print.php?id=<?php echo (int) $delivery["id"]; ?>" target="_blank" class="btn btn-outline-secondary w-100">
-                                            <i class="mdi mdi-printer me-1"></i> Imprimir documento de entrega
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
                             </div>
                         </div>
                     </div>

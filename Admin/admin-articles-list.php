@@ -136,6 +136,8 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 
     <title>Articulos | Detallia</title>
     <?php include 'layouts/head.php'; ?>
+    <!-- glightbox css -->
+    <link rel="stylesheet" href="assets/libs/glightbox/css/glightbox.min.css">
     <?php include 'layouts/head-style.php'; ?>
 
 </head>
@@ -210,8 +212,13 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                 <tr>
                                                     <td>
                                                         <?php if (!empty($a["image_path"])): ?>
-                                                            <img src="<?php echo htmlspecialchars($a["image_path"]); ?>"
-                                                                 alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;">
+                                                            <a href="<?php echo htmlspecialchars($a["image_path"]); ?>"
+                                                               class="image-popup"
+                                                               data-glightbox="title: <?php echo htmlspecialchars(addslashes($a['name'])); ?>">
+                                                                <img src="<?php echo htmlspecialchars($a["image_path"]); ?>"
+                                                                     alt="<?php echo htmlspecialchars($a['name']); ?>"
+                                                                     style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;">
+                                                            </a>
                                                         <?php else: ?>
                                                             <div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;">
                                                                 <i class="mdi mdi-image-outline text-muted"></i>
@@ -338,6 +345,11 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+<!-- glightbox js -->
+<script src="assets/libs/glightbox/js/glightbox.min.js"></script>
+<script>
+GLightbox({ selector: '.image-popup', title: false });
+</script>
 
 <?php if ($can_edit): ?>
 <script>

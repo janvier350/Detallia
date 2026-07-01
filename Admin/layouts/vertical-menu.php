@@ -358,6 +358,13 @@
                 </li>
 
                 <li>
+                    <a href="admin-stock-movements.php">
+                        <i data-feather="bar-chart-2"></i>
+                        <span>Inventario</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
                         <span data-key="t-apps"><?php echo $language["Apps"]; ?></span>

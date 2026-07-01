@@ -2,12 +2,16 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
-require_role([1, 2, 3]); // Todos los roles pueden ver; solo Admin/Jefe pueden editar
+require_role([1, 2, 3]);
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
 
 $success_msg = "";
 $error_msg = "";
+
+$upload_dir = __DIR__ . '/assets/images/articles/';
+$allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+$max_size = 2 * 1024 * 1024; // 2 MB
 
 // ---------------------------------------------------------------
 // CREAR / EDITAR articulo
@@ -24,17 +28,55 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     $category_id = $category_id > 0 ? $category_id : null;
     $sku = $sku !== "" ? $sku : null;
 
-    if ($name === "") {
+    // Manejo de imagen
+    $new_image_path = null;
+    $image_error = "";
+
+    if (!empty($_FILES["image"]["name"])) {
+        $file      = $_FILES["image"];
+        $ftype     = mime_content_type($file["tmp_name"]);
+        $fsize     = $file["size"];
+        $ext       = strtolower(pathinfo($file["name"], PATHINFO_EXTENSION));
+
+        if (!in_array($ftype, $allowed_types)) {
+            $image_error = "Solo se permiten imagenes JPG, PNG, GIF o WEBP.";
+        } elseif ($fsize > $max_size) {
+            $image_error = "La imagen no puede superar 2 MB.";
+        } else {
+            $filename = 'art_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (move_uploaded_file($file["tmp_name"], $upload_dir . $filename)) {
+                $new_image_path = 'assets/images/articles/' . $filename;
+            } else {
+                $image_error = "No se pudo guardar la imagen. Verifica permisos del directorio.";
+            }
+        }
+    }
+
+    if ($image_error !== "") {
+        $error_msg = $image_error;
+    } elseif ($name === "") {
         $error_msg = "El nombre del articulo es obligatorio.";
     } else {
         if ($article_id > 0) {
-            $sql = "UPDATE articles SET name=?, sku=?, category_id=?, unit=?, description=?, status=? WHERE id=?";
-            $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssisssi", $name, $sku, $category_id, $unit, $description, $status, $article_id);
+            if ($new_image_path !== null) {
+                // Borrar imagen anterior si existe
+                $old = mysqli_query($link, "SELECT image_path FROM articles WHERE id = " . $article_id);
+                if ($old && ($oldrow = mysqli_fetch_assoc($old)) && $oldrow["image_path"]) {
+                    $oldfile = __DIR__ . '/' . $oldrow["image_path"];
+                    if (file_exists($oldfile)) @unlink($oldfile);
+                }
+                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, unit=?, description=?, status=?, image_path=? WHERE id=?";
+                $stmt = mysqli_prepare($link, $sql);
+                mysqli_stmt_bind_param($stmt, "ssissssi", $name, $sku, $category_id, $unit, $description, $status, $new_image_path, $article_id);
+            } else {
+                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, unit=?, description=?, status=? WHERE id=?";
+                $stmt = mysqli_prepare($link, $sql);
+                mysqli_stmt_bind_param($stmt, "ssisssi", $name, $sku, $category_id, $unit, $description, $status, $article_id);
+            }
         } else {
-            $sql = "INSERT INTO articles (name, sku, category_id, unit, description, status) VALUES (?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO articles (name, sku, category_id, unit, description, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssisss", $name, $sku, $category_id, $unit, $description, $status);
+            mysqli_stmt_bind_param($stmt, "ssissss", $name, $sku, $category_id, $unit, $description, $status, $new_image_path);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
@@ -55,7 +97,14 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $article_id = (int) ($_POST["id"] ?? 0);
     if ($article_id > 0) {
-        $sql = "DELETE FROM articles WHERE id = ?";
+        // Borrar imagen si tiene
+        $old = mysqli_query($link, "SELECT image_path FROM articles WHERE id = " . $article_id);
+        if ($old && ($oldrow = mysqli_fetch_assoc($old)) && $oldrow["image_path"]) {
+            $oldfile = __DIR__ . '/' . $oldrow["image_path"];
+            if (file_exists($oldfile)) @unlink($oldfile);
+        }
+
+        $sql  = "DELETE FROM articles WHERE id = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "i", $article_id);
         if (mysqli_stmt_execute($stmt)) {
@@ -75,7 +124,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // ---------------------------------------------------------------
 $categories = mysqli_query($link, "SELECT id, name FROM article_categories ORDER BY name");
 
-$articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.description, a.status, a.created_at,
+$articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.description, a.image_path, a.status, a.created_at,
                                          c.id AS category_id, c.name AS category_name
                                   FROM articles a
                                   LEFT JOIN article_categories c ON c.id = a.category_id
@@ -93,7 +142,6 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 
 <?php include 'layouts/body.php'; ?>
 
-<!-- Begin page -->
 <div id="layout-wrapper">
 
     <?php include 'layouts/menu.php'; ?>
@@ -103,12 +151,10 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
         <div class="page-content">
             <div class="container-fluid">
 
-                <!-- start page title -->
                 <div class="row">
                     <div class="col-12">
                         <div class="page-title-box d-sm-flex align-items-center justify-content-between">
                             <h4 class="mb-sm-0 font-size-18">Articulos</h4>
-
                             <div class="page-title-right">
                                 <ol class="breadcrumb m-0">
                                     <li class="breadcrumb-item"><a href="index.php">Detallia</a></li>
@@ -118,7 +164,6 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                         </div>
                     </div>
                 </div>
-                <!-- end page title -->
 
                 <?php if ($success_msg): ?>
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -150,6 +195,7 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
+                                                <th style="width:60px">Imagen</th>
                                                 <th>#</th>
                                                 <th>Nombre</th>
                                                 <th>SKU</th>
@@ -162,6 +208,16 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                         <tbody>
                                             <?php while ($a = mysqli_fetch_assoc($articles)): ?>
                                                 <tr>
+                                                    <td>
+                                                        <?php if (!empty($a["image_path"])): ?>
+                                                            <img src="<?php echo htmlspecialchars($a["image_path"]); ?>"
+                                                                 alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;">
+                                                        <?php else: ?>
+                                                            <div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+                                                                <i class="mdi mdi-image-outline text-muted"></i>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?php echo (int) $a["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($a["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($a["sku"] ?? ""); ?></td>
@@ -209,7 +265,7 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 <!-- Modal: Crear / Editar articulo -->
 <div class="modal fade" id="articleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-        <form method="post" class="modal-content">
+        <form method="post" enctype="multipart/form-data" class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="articleModalLabel">Nuevo articulo</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -249,6 +305,19 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label">Imagen del producto</label>
+                    <div id="currentImageWrapper" class="mb-2" style="display:none;">
+                        <img id="currentImage" src="" alt="" style="height:80px;border-radius:6px;object-fit:cover;">
+                        <p class="text-muted mt-1 mb-0" style="font-size:0.8rem;">Imagen actual — sube una nueva para reemplazarla</p>
+                    </div>
+                    <input type="file" name="image" id="article_image" class="form-control" accept="image/*">
+                    <div class="form-text">JPG, PNG, GIF o WEBP · max 2 MB</div>
+                    <div id="imagePreviewWrapper" class="mt-2" style="display:none;">
+                        <img id="imagePreview" src="" alt="" style="height:80px;border-radius:6px;object-fit:cover;">
+                    </div>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label">Estado</label>
                     <select name="status" id="article_status" class="form-select">
                         <option value="activo">Activo</option>
@@ -265,15 +334,32 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 </div>
 <?php endif; ?>
 
-<!-- Right Sidebar -->
 <?php include 'layouts/right-sidebar.php'; ?>
 
-<!-- JAVASCRIPT -->
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
 
 <?php if ($can_edit): ?>
 <script>
+var imageInput   = document.getElementById('article_image');
+var previewImg   = document.getElementById('imagePreview');
+var previewWrap  = document.getElementById('imagePreviewWrapper');
+var currentWrap  = document.getElementById('currentImageWrapper');
+var currentImg   = document.getElementById('currentImage');
+
+imageInput.addEventListener('change', function () {
+    if (this.files && this.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            previewImg.src = e.target.result;
+            previewWrap.style.display = 'block';
+        };
+        reader.readAsDataURL(this.files[0]);
+    } else {
+        previewWrap.style.display = 'none';
+    }
+});
+
 function openCreateModal() {
     document.getElementById('articleModalLabel').innerText = 'Nuevo articulo';
     document.getElementById('article_id').value = '';
@@ -283,6 +369,9 @@ function openCreateModal() {
     document.getElementById('article_unit').value = 'unidad';
     document.getElementById('article_description').value = '';
     document.getElementById('article_status').value = 'activo';
+    imageInput.value = '';
+    previewWrap.style.display = 'none';
+    currentWrap.style.display = 'none';
 }
 
 function openEditModal(article) {
@@ -294,6 +383,15 @@ function openEditModal(article) {
     document.getElementById('article_unit').value = article.unit;
     document.getElementById('article_description').value = article.description || '';
     document.getElementById('article_status').value = article.status;
+    imageInput.value = '';
+    previewWrap.style.display = 'none';
+
+    if (article.image_path) {
+        currentImg.src = article.image_path;
+        currentWrap.style.display = 'block';
+    } else {
+        currentWrap.style.display = 'none';
+    }
 
     var modal = new bootstrap.Modal(document.getElementById('articleModal'));
     modal.show();

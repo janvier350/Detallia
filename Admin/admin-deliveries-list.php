@@ -48,7 +48,8 @@ $sql = "SELECT d.id, d.delivery_date, d.notes,
                k.name AS kit_name, c.name AS client_name,
                b.name AS brand_name, cc.name AS classification_name,
                mt.name AS management_type_name,
-               COALESCE(u.full_name, u.username) AS delivered_by_name
+               COALESCE(u.full_name, u.username) AS delivered_by_name,
+               CASE WHEN d.delivery_date <= CURDATE() THEN 'entregado' ELSE 'pendiente' END AS status
         FROM kit_deliveries d
         JOIN kits k ON k.id = d.kit_id
         JOIN clients c ON c.id = d.client_id
@@ -175,6 +176,7 @@ $kits_filter    = mysqli_query($link, "SELECT id, name FROM kits ORDER BY name")
                                                 <th>Kit entregado</th>
                                                 <th>Tipo de gestion</th>
                                                 <th>Entregado por</th>
+                                                <th>Estado</th>
                                                 <th class="text-end">Acciones</th>
                                             </tr>
                                         </thead>
@@ -189,6 +191,11 @@ $kits_filter    = mysqli_query($link, "SELECT id, name FROM kits ORDER BY name")
                                                     <td><?php echo htmlspecialchars($d["kit_name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($d["management_type_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($d["delivered_by_name"] ?? "—"); ?></td>
+                                                    <td>
+                                                        <span class="badge bg-<?php echo $d["status"] === "entregado" ? "success" : "warning"; ?>">
+                                                            <?php echo $d["status"] === "entregado" ? "Entregado" : "Pendiente"; ?>
+                                                        </span>
+                                                    </td>
                                                     <td class="text-end">
                                                         <a href="admin-delivery-print.php?id=<?php echo (int) $d["id"]; ?>" target="_blank" class="btn btn-sm btn-soft-secondary">
                                                             <i class="mdi mdi-printer"></i>

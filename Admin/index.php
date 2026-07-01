@@ -80,9 +80,12 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
 // Movimientos de inventario para el calendario
 // ---------------------------------------------------------------
 $stockEvents = [];
-$res = mysqli_query($link, "SELECT sm.movement_type, sm.quantity, sm.created_at, a.name AS article_name, a.unit
+$res = mysqli_query($link, "SELECT sm.movement_type, sm.quantity, sm.created_at, sm.reference_type, sm.reference_id,
+                                    a.name AS article_name, a.unit,
+                                    COALESCE(u.full_name, u.username) AS created_by_name
                              FROM stock_movements sm
                              JOIN articles a ON a.id = sm.article_id
+                             LEFT JOIN users u ON u.id = sm.created_by
                              ORDER BY sm.created_at DESC LIMIT 300");
 while ($row = mysqli_fetch_assoc($res)) {
     $stockEvents[] = $row;
@@ -101,6 +104,10 @@ while ($row = mysqli_fetch_assoc($res)) {
         .fc-event.evt-devolucion { background-color: #50a5f1 !important; border-color: #50a5f1 !important; color: #fff !important; }
         .fc-event.evt-ajuste { background-color: #74788d !important; border-color: #74788d !important; color: #fff !important; }
         .fc-event-title, .fc-list-event-title { color: #fff !important; }
+        .badge.evt-compra { background-color: #34c38f; color: #fff; }
+        .badge.evt-entrega { background-color: #f46a6a; color: #fff; }
+        .badge.evt-devolucion { background-color: #50a5f1; color: #fff; }
+        .badge.evt-ajuste { background-color: #74788d; color: #fff; }
     </style>
 </head>
 
@@ -323,6 +330,42 @@ while ($row = mysqli_fetch_assoc($res)) {
     </div>
 </div>
 
+<!-- Modal: detalle de movimiento de inventario -->
+<div class="modal fade" id="movementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="movementModalLabel">Detalle del movimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row mb-0">
+                    <dt class="col-5">Tipo</dt>
+                    <dd class="col-7" id="movementType"></dd>
+
+                    <dt class="col-5">Articulo</dt>
+                    <dd class="col-7" id="movementArticle"></dd>
+
+                    <dt class="col-5">Cantidad</dt>
+                    <dd class="col-7" id="movementQuantity"></dd>
+
+                    <dt class="col-5">Fecha</dt>
+                    <dd class="col-7" id="movementDate"></dd>
+
+                    <dt class="col-5">Origen</dt>
+                    <dd class="col-7" id="movementOrigin"></dd>
+
+                    <dt class="col-5">Registrado por</dt>
+                    <dd class="col-7" id="movementUser"></dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include 'layouts/right-sidebar.php'; ?>
 
 <?php include 'layouts/vendor-scripts.php'; ?>
@@ -356,6 +399,7 @@ chart.render();
 
 var STOCK_EVENTS = <?php echo json_encode($stockEvents, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var MOVEMENT_LABELS = { compra: 'Compra', entrega: 'Entrega', devolucion: 'Devolucion', ajuste: 'Ajuste' };
+var ORIGIN_LABELS = { compra: 'Compra', entrega: 'Entrega', devolucion: 'Devolucion', ajuste: 'Ajuste manual' };
 
 var calendarEvents = STOCK_EVENTS.map(function (ev) {
     var qty = parseFloat(ev.quantity);
@@ -363,9 +407,22 @@ var calendarEvents = STOCK_EVENTS.map(function (ev) {
     return {
         title: MOVEMENT_LABELS[ev.movement_type] + ': ' + ev.article_name + ' (' + sign + qty + ' ' + ev.unit + ')',
         start: ev.created_at.replace(' ', 'T'),
-        classNames: ['evt-' + ev.movement_type]
+        classNames: ['evt-' + ev.movement_type],
+        extendedProps: {
+            movement_type: ev.movement_type,
+            article_name: ev.article_name,
+            unit: ev.unit,
+            quantity: qty,
+            created_at: ev.created_at,
+            reference_type: ev.reference_type,
+            reference_id: ev.reference_id,
+            created_by_name: ev.created_by_name
+        }
     };
 });
+
+var movementModalEl = document.getElementById('movementModal');
+var movementModal = new bootstrap.Modal(movementModalEl);
 
 var calendarEl = document.getElementById('inventory-calendar');
 var inventoryCalendar = new FullCalendar.Calendar(calendarEl, {
@@ -383,7 +440,21 @@ var inventoryCalendar = new FullCalendar.Calendar(calendarEl, {
         list: 'Lista'
     },
     events: calendarEvents,
-    dayMaxEvents: 3
+    dayMaxEvents: 3,
+    eventClick: function (info) {
+        var p = info.event.extendedProps;
+        var sign = p.quantity >= 0 ? '+' : '';
+        var qtyClass = p.quantity >= 0 ? 'text-success' : 'text-danger';
+
+        document.getElementById('movementType').innerHTML = '<span class="badge evt-' + p.movement_type + '">' + MOVEMENT_LABELS[p.movement_type] + '</span>';
+        document.getElementById('movementArticle').innerText = p.article_name;
+        document.getElementById('movementQuantity').innerHTML = '<span class="' + qtyClass + '">' + sign + p.quantity + ' ' + p.unit + '</span>';
+        document.getElementById('movementDate').innerText = info.event.start.toLocaleString('es-EC');
+        document.getElementById('movementOrigin').innerText = (ORIGIN_LABELS[p.movement_type] || '—') + (p.reference_id ? ' #' + p.reference_id : '');
+        document.getElementById('movementUser').innerText = p.created_by_name || '—';
+
+        movementModal.show();
+    }
 });
 inventoryCalendar.render();
 </script>

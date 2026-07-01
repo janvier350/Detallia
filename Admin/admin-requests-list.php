@@ -6,6 +6,7 @@ require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 4]);
 
 $is_solicitante = (int) $_SESSION["role_id"] === 4;
+$can_dispatch   = !$is_solicitante;
 
 $success_msg = "";
 if (isset($_SESSION["flash_success"])) {
@@ -14,9 +15,20 @@ if (isset($_SESSION["flash_success"])) {
 }
 
 // Las solicitudes son registros de auditoria: una vez guardadas no se
-// pueden editar ni eliminar.
+// pueden editar ni eliminar. Solo se puede marcar como despachada.
+if ($can_dispatch && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "dispatch") {
+    $request_id = (int) ($_POST["id"] ?? 0);
+    if ($request_id > 0) {
+        $stmt = mysqli_prepare($link, "UPDATE requests SET status = 'despachado' WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $request_id);
+        mysqli_stmt_execute($stmt);
+        $_SESSION["flash_success"] = "Solicitud marcada como despachada.";
+        header("location: admin-requests-list.php");
+        exit;
+    }
+}
 
-$sql = "SELECT r.id, r.request_date, r.notes, COALESCE(u.full_name, u.username) AS requested_by_name
+$sql = "SELECT r.id, r.request_date, r.notes, r.status, COALESCE(u.full_name, u.username) AS requested_by_name
         FROM requests r
         LEFT JOIN users u ON u.id = r.requested_by";
 if ($is_solicitante) {
@@ -99,6 +111,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                 <?php if (!$is_solicitante): ?><th>Solicitado por</th><?php endif; ?>
                                                 <th>Articulos / Kits</th>
                                                 <th>Notas</th>
+                                                <th>Estado</th>
                                                 <th class="text-end">Acciones</th>
                                             </tr>
                                         </thead>
@@ -120,10 +133,24 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                         <?php endforeach; ?>
                                                     </td>
                                                     <td><?php echo nl2br(htmlspecialchars($r["notes"])); ?></td>
+                                                    <td>
+                                                        <span class="badge bg-<?php echo $r["status"] === "despachado" ? "success" : "warning"; ?>">
+                                                            <?php echo $r["status"] === "despachado" ? "Despachado" : "Pendiente"; ?>
+                                                        </span>
+                                                    </td>
                                                     <td class="text-end">
                                                         <a href="admin-request-print.php?id=<?php echo (int) $r["id"]; ?>" target="_blank" class="btn btn-sm btn-soft-secondary">
                                                             <i class="mdi mdi-printer"></i>
                                                         </a>
+                                                        <?php if ($can_dispatch && $r["status"] !== "despachado"): ?>
+                                                            <form method="post" class="d-inline" onsubmit="return confirm('¿Marcar esta solicitud como despachada?');">
+                                                                <input type="hidden" name="action" value="dispatch">
+                                                                <input type="hidden" name="id" value="<?php echo (int) $r["id"]; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-success">
+                                                                    <i class="mdi mdi-check-bold"></i>
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
                                                     </td>
                                                 </tr>
                                             <?php endwhile; ?>

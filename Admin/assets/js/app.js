@@ -293,6 +293,7 @@ File: Main Js File
                 updateRadio('topbar-color-light')
                 updateRadio('sidebar-color-light')
                 updateRadio('topbar-color-light')
+                localStorage.setItem('detallia-theme', 'light');
             } else {
                 document.body.setAttribute('data-bs-theme', 'dark');
                 document.body.setAttribute('data-topbar', 'dark');
@@ -301,6 +302,7 @@ File: Main Js File
                 updateRadio('layout-mode-dark')
                 updateRadio('sidebar-color-dark')
                 updateRadio('topbar-color-dark')
+                localStorage.setItem('detallia-theme', 'dark');
             }
         });
 
@@ -340,6 +342,7 @@ File: Main Js File
                 (body.hasAttribute("data-layout") && body.getAttribute("data-layout") == "horizontal") ? '' : document.body.setAttribute('data-sidebar', 'light');
                 updateRadio('topbar-color-light')
                 updateRadio('sidebar-color-light')
+                localStorage.setItem('detallia-theme', 'light');
             } else {
                 document.body.setAttribute('data-bs-theme', 'dark');
                 document.body.setAttribute('data-topbar', 'dark');
@@ -347,6 +350,7 @@ File: Main Js File
                 (body.hasAttribute("data-layout") && body.getAttribute("data-layout") == "horizontal") ? '' : document.body.setAttribute('data-sidebar', 'dark');
                 updateRadio('topbar-color-dark')
                 updateRadio('sidebar-color-dark')
+                localStorage.setItem('detallia-theme', 'dark');
             }
         });
 

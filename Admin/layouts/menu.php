@@ -1,6 +1,7 @@
 <!-- if you select vertical Menu then comment Horizontal Menu and uncomment this-->
 <?php
 
+require_once 'layouts/helpers.php';
 include 'layouts/vertical-menu.php';
 
 ?>

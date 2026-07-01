@@ -1,3 +1,23 @@
+<?php
+$pendingRequests = [];
+if (isset($_SESSION["role_id"]) && can("solicitudes", "view")) {
+    $notifSql = "SELECT r.id, r.request_date, COALESCE(u.full_name, u.username) AS requested_by_name
+                 FROM requests r
+                 LEFT JOIN users u ON u.id = r.requested_by
+                 WHERE r.status = 'pendiente'";
+    if ((int) $_SESSION["role_id"] === 4) {
+        $notifSql .= " AND r.requested_by = " . (int) $_SESSION["id"];
+    }
+    $notifSql .= " ORDER BY r.id DESC LIMIT 8";
+    $notifRes = mysqli_query($link, $notifSql);
+    if ($notifRes) {
+        while ($notifRow = mysqli_fetch_assoc($notifRes)) {
+            $pendingRequests[] = $notifRow;
+        }
+    }
+}
+$pendingRequestsCount = count($pendingRequests);
+?>
 <header id="page-topbar">
     <div class="navbar-header">
         <div class="d-flex">
@@ -168,86 +188,49 @@
                 <button type="button" class="btn header-item noti-icon position-relative" id="page-header-notifications-dropdown"
                 data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i data-feather="bell" class="icon-lg"></i>
-                    <span class="badge bg-danger rounded-pill">5</span>
+                    <?php if ($pendingRequestsCount > 0): ?>
+                        <span class="badge bg-danger rounded-pill"><?php echo $pendingRequestsCount; ?></span>
+                    <?php endif; ?>
                 </button>
                 <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0"
                     aria-labelledby="page-header-notifications-dropdown">
                     <div class="p-3">
                         <div class="row align-items-center">
                             <div class="col">
-                                <h6 class="m-0"> <?php echo $language["Notifications"]; ?> </h6>
+                                <h6 class="m-0">Solicitudes pendientes de despacho</h6>
                             </div>
                             <div class="col-auto">
-                                <a href="#!" class="small text-reset text-decoration-underline"> <?php echo $language["Unread"]; ?> (3)</a>
+                                <span class="small text-muted"><?php echo $pendingRequestsCount; ?> pendiente<?php echo $pendingRequestsCount === 1 ? '' : 's'; ?></span>
                             </div>
                         </div>
                     </div>
                     <div data-simplebar style="max-height: 230px;">
-                        <a href="#!" class="text-reset notification-item">
-                            <div class="d-flex">
-                                <div class="flex-shrink-0 me-3">
-                                    <img src="assets/images/users/avatar-3.jpg" class="rounded-circle avatar-sm" alt="user-pic">
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1"><?php echo $language["James_Lemire"]; ?></h6>
-                                    <div class="font-size-13 text-muted">
-                                        <p class="mb-1"><?php echo $language["It_will_seem_like_simplified_English"]; ?>.</p>
-                                        <p class="mb-0"><i class="mdi mdi-clock-outline"></i> <span><?php echo $language["1_hours_ago"]; ?></span></p>
+                        <?php if (empty($pendingRequests)): ?>
+                            <div class="p-3 text-muted text-center">No hay solicitudes pendientes.</div>
+                        <?php else: ?>
+                            <?php foreach ($pendingRequests as $pr): ?>
+                                <a href="admin-request-print.php?id=<?php echo (int) $pr["id"]; ?>" target="_blank" class="text-reset notification-item">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0 avatar-sm me-3">
+                                            <span class="avatar-title bg-warning-subtle text-warning rounded-circle font-size-16">
+                                                <i class="mdi mdi-clipboard-text-outline"></i>
+                                            </span>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">Solicitud #<?php echo (int) $pr["id"]; ?></h6>
+                                            <div class="font-size-13 text-muted">
+                                                <p class="mb-1">Solicitado por <?php echo htmlspecialchars($pr["requested_by_name"] ?? "—"); ?></p>
+                                                <p class="mb-0"><i class="mdi mdi-clock-outline"></i> <span><?php echo htmlspecialchars(date("d/m/Y H:i", strtotime($pr["request_date"]))); ?></span></p>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        </a>
-                        <a href="#!" class="text-reset notification-item">
-                            <div class="d-flex">
-                                <div class="flex-shrink-0 avatar-sm me-3">
-                                    <span class="avatar-title bg-primary rounded-circle font-size-16">
-                                        <i class="bx bx-cart"></i>
-                                    </span>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1"><?php echo $language["Your_order_is_placed"]; ?></h6>
-                                    <div class="font-size-13 text-muted">
-                                        <p class="mb-1"><?php echo $language["If_several_languages_coalesce_the_grammar"]; ?></p>
-                                        <p class="mb-0"><i class="mdi mdi-clock-outline"></i> <span><?php echo $language["3_min_ago"]; ?></span></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                        <a href="#!" class="text-reset notification-item">
-                            <div class="d-flex">
-                                <div class="flex-shrink-0 avatar-sm me-3">
-                                    <span class="avatar-title bg-success rounded-circle font-size-16">
-                                        <i class="bx bx-badge-check"></i>
-                                    </span>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1"><?php echo $language["Your_item_is_shipped"]; ?></h6>
-                                    <div class="font-size-13 text-muted">
-                                        <p class="mb-1"><?php echo $language["If_several_languages_coalesce_the_grammar"]; ?></p>
-                                        <p class="mb-0"><i class="mdi mdi-clock-outline"></i> <span><?php echo $language["3_min_ago"]; ?></span></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-
-                        <a href="#!" class="text-reset notification-item">
-                            <div class="d-flex">
-                                <div class="flex-shrink-0 me-3">
-                                    <img src="assets/images/users/avatar-6.jpg" class="rounded-circle avatar-sm" alt="user-pic">
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1"><?php echo $language["Salena_Layfield"]; ?></h6>
-                                    <div class="font-size-13 text-muted">
-                                        <p class="mb-1"><?php echo $language["As_a_skeptical_Cambridge_friend_of_mine_occidental"]; ?>.</p>
-                                        <p class="mb-0"><i class="mdi mdi-clock-outline"></i> <span><?php echo $language["1_hours_ago"]; ?></span></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
+                                </a>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                     <div class="p-2 border-top d-grid">
-                        <a class="btn btn-sm btn-link font-size-14 text-center" href="javascript:void(0)">
-                            <i class="mdi mdi-arrow-right-circle me-1"></i> <span><?php echo $language["View_More"]; ?></span> 
+                        <a class="btn btn-sm btn-link font-size-14 text-center" href="admin-requests-list.php">
+                            <i class="mdi mdi-arrow-right-circle me-1"></i> <span>Ver todas las solicitudes</span>
                         </a>
                     </div>
                 </div>
@@ -262,15 +245,17 @@
             <div class="dropdown d-inline-block">
                 <button type="button" class="btn header-item bg-light-subtle border-start border-end" id="page-header-user-dropdown"
                 data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <img class="rounded-circle header-profile-user" src="assets/images/users/avatar-1.jpg"
-                        alt="Header Avatar">
-                    <span class="d-none d-xl-inline-block ms-1 fw-medium"><?php echo $language["Shawn_L"]; ?>.</span>
+                    <span class="header-profile-user rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center">
+                        <i class="mdi mdi-account font-size-20"></i>
+                    </span>
+                    <span class="d-none d-xl-inline-block ms-1 fw-medium"><?php echo htmlspecialchars($_SESSION["username"] ?? ""); ?></span>
                     <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end">
-                    <!-- item-->
-                    <a class="dropdown-item" href="apps-contacts-profile.php"><i class="mdi mdi mdi-face-man font-size-16 align-middle me-1"></i> <?php echo $language["Profile"]; ?></a>
-                    <a class="dropdown-item" href="auth-lock-screen.php"><i class="mdi mdi-lock font-size-16 align-middle me-1"></i> <?php echo $language["Lock_screen"]; ?> </a>
+                    <div class="dropdown-item-text">
+                        <div class="fw-medium"><?php echo htmlspecialchars($_SESSION["username"] ?? ""); ?></div>
+                        <div class="text-muted font-size-12"><?php echo htmlspecialchars($_SESSION["role_name"] ?? ""); ?></div>
+                    </div>
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item" href="logout.php"><i class="mdi mdi-logout font-size-16 align-middle me-1"></i> <?php echo $language["Logout"]; ?></a>
                 </div>

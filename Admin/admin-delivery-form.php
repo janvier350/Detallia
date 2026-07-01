@@ -62,18 +62,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$kits             = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activo' ORDER BY name");
-$clients          = mysqli_query($link, "SELECT id, name FROM clients WHERE status = 'activo' ORDER BY name");
-$management_types = mysqli_query($link, "SELECT id, name FROM management_types ORDER BY id");
+$kits             = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activo' ORDER BY name") ?: false;
+$clients          = mysqli_query($link, "SELECT id, name FROM clients WHERE status = 'activo' ORDER BY name") ?: false;
+$management_types = mysqli_query($link, "SELECT id, name FROM management_types ORDER BY id") ?: false;
 
-// Kit items preview: load items for selected kit (JS will handle dynamic update)
+// Kit items preview for JS panel
 $kitsWithItems = [];
 $res = mysqli_query($link, "SELECT ki.kit_id, a.name AS article_name, ki.quantity, a.unit
                              FROM kit_items ki
                              JOIN articles a ON a.id = ki.article_id
                              ORDER BY ki.kit_id, a.name");
-while ($row = mysqli_fetch_assoc($res)) {
-    $kitsWithItems[(int) $row["kit_id"]][] = $row;
+if ($res) {
+    while ($row = mysqli_fetch_assoc($res)) {
+        $kitsWithItems[(int) $row["kit_id"]][] = $row;
+    }
 }
 ?>
 <?php include 'layouts/head-main.php'; ?>
@@ -127,7 +129,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                             <label class="form-label">Kit a entregar</label>
                                             <select name="kit_id" id="kitSelect" class="form-select" required>
                                                 <option value="">Selecciona un kit...</option>
-                                                <?php while ($k = mysqli_fetch_assoc($kits)): ?>
+                                                <?php while ($kits && ($k = mysqli_fetch_assoc($kits))): ?>
                                                     <option value="<?php echo (int) $k["id"]; ?>" <?php echo (int) $delivery["kit_id"] === (int) $k["id"] ? "selected" : ""; ?>>
                                                         <?php echo htmlspecialchars($k["name"]); ?>
                                                     </option>
@@ -138,7 +140,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                             <label class="form-label">Cliente</label>
                                             <select name="client_id" class="form-select" required>
                                                 <option value="">Selecciona un cliente...</option>
-                                                <?php while ($c = mysqli_fetch_assoc($clients)): ?>
+                                                <?php while ($clients && ($c = mysqli_fetch_assoc($clients))): ?>
                                                     <option value="<?php echo (int) $c["id"]; ?>" <?php echo (int) $delivery["client_id"] === (int) $c["id"] ? "selected" : ""; ?>>
                                                         <?php echo htmlspecialchars($c["name"]); ?>
                                                     </option>
@@ -152,7 +154,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                             <label class="form-label">Tipo de gestion</label>
                                             <select name="management_type_id" class="form-select">
                                                 <option value="">Sin especificar</option>
-                                                <?php while ($mt = mysqli_fetch_assoc($management_types)): ?>
+                                                <?php while ($management_types && ($mt = mysqli_fetch_assoc($management_types))): ?>
                                                     <option value="<?php echo (int) $mt["id"]; ?>" <?php echo (int) $delivery["management_type_id"] === (int) $mt["id"] ? "selected" : ""; ?>>
                                                         <?php echo htmlspecialchars($mt["name"]); ?>
                                                     </option>

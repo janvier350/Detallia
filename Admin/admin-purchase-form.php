@@ -254,9 +254,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                         <table class="table table-bordered align-middle" id="itemsTable">
                                             <thead class="table-light">
                                                 <tr>
-                                                    <th style="min-width:220px">Articulo</th>
-                                                    <th style="width:130px">Categoria</th>
-                                                    <th style="width:130px">Marca</th>
+                                                    <th style="min-width:260px">Articulo</th>
                                                     <th style="width:120px">Cantidad</th>
                                                     <th style="width:150px">Precio unitario</th>
                                                     <th style="width:130px">Subtotal</th>
@@ -268,7 +266,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                             </tbody>
                                             <tfoot>
                                                 <tr>
-                                                    <td colspan="5" class="text-end fw-bold">Total</td>
+                                                    <td colspan="3" class="text-end fw-bold">Total</td>
                                                     <td class="fw-bold" id="grandTotal">0.00</td>
                                                     <td colspan="2"></td>
                                                 </tr>
@@ -319,8 +317,6 @@ var ARTICLES = <?php
     }
     echo json_encode($articleList, JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>;
-var ARTICLES_BY_ID = {};
-ARTICLES.forEach(function (a) { ARTICLES_BY_ID[a.id] = a; });
 
 var PRICE_HISTORY = <?php echo json_encode($priceHistory, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
@@ -333,7 +329,7 @@ function buildArticleOptions(selectedId) {
     var html = '<option value="">Selecciona...</option>';
     ARTICLES.forEach(function (a) {
         var sel = (selectedId && parseInt(selectedId) === a.id) ? 'selected' : '';
-        html += '<option value="' + a.id + '" ' + sel + '>' + a.name + '</option>';
+        html += '<option value="' + a.id + '" ' + sel + '>' + a.name + ' (' + a.category_name + ' / ' + a.brand_name + ')</option>';
     });
     return html;
 }
@@ -357,8 +353,6 @@ function addRow(item) {
     var tr = document.createElement('tr');
     tr.innerHTML =
         '<td><select name="item_article_id[]" class="form-select article-select" required>' + buildArticleOptions(item.article_id) + '</select></td>' +
-        '<td class="item-category text-muted"></td>' +
-        '<td class="item-brand text-muted"></td>' +
         '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control item-qty" value="' + (item.quantity || 1) + '" required></td>' +
         '<td><input type="number" step="0.01" min="0" name="item_unit_price[]" class="form-control item-price" value="' + (item.unit_price || '') + '" required></td>' +
         '<td class="item-subtotal text-end">0.00</td>' +
@@ -371,15 +365,6 @@ function addRow(item) {
     var priceInput = tr.querySelector('.item-price');
     var historyCell = tr.querySelector('.item-history');
     var subtotalCell = tr.querySelector('.item-subtotal');
-    var categoryCell = tr.querySelector('.item-category');
-    var brandCell = tr.querySelector('.item-brand');
-
-    function updateArticleInfo() {
-        var a = ARTICLES_BY_ID[select.value];
-        categoryCell.innerText = a ? a.category_name : '';
-        brandCell.innerText = a ? a.brand_name : '';
-    }
-    updateArticleInfo();
 
     function recalc() {
         var qty = parseFloat(qtyInput.value) || 0;
@@ -390,7 +375,6 @@ function addRow(item) {
 
     select.addEventListener('change', function () {
         historyCell.innerHTML = buildHistoryHtml(select.value);
-        updateArticleInfo();
         recalc();
     });
     qtyInput.addEventListener('input', recalc);

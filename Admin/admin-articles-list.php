@@ -15,6 +15,29 @@ $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 $max_size = 2 * 1024 * 1024; // 2 MB
 
 // ---------------------------------------------------------------
+// CREAR categoria (AJAX, desde el modal de articulo)
+// ---------------------------------------------------------------
+if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "add_category") {
+    header("Content-Type: application/json");
+    $cat_name = trim($_POST["name"] ?? "");
+
+    if ($cat_name === "") {
+        echo json_encode(["ok" => false, "error" => "El nombre de la categoria es obligatorio."]);
+        exit;
+    }
+
+    $stmt = mysqli_prepare($link, "INSERT INTO article_categories (name) VALUES (?)");
+    mysqli_stmt_bind_param($stmt, "s", $cat_name);
+    if (mysqli_stmt_execute($stmt)) {
+        echo json_encode(["ok" => true, "id" => mysqli_insert_id($link), "name" => $cat_name]);
+    } else {
+        $msg = mysqli_errno($link) == 1062 ? "Ya existe una categoria con ese nombre." : "No se pudo crear la categoria.";
+        echo json_encode(["ok" => false, "error" => $msg]);
+    }
+    exit;
+}
+
+// ---------------------------------------------------------------
 // CREAR / EDITAR articulo
 // ---------------------------------------------------------------
 if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "save") {
@@ -309,12 +332,17 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
 
                 <div class="mb-3">
                     <label class="form-label">Categoria</label>
-                    <select name="category_id" id="article_category_id" class="form-select">
-                        <option value="">Sin categoria</option>
-                        <?php mysqli_data_seek($categories, 0); while ($c = mysqli_fetch_assoc($categories)): ?>
-                            <option value="<?php echo (int) $c["id"]; ?>"><?php echo htmlspecialchars($c["name"]); ?></option>
-                        <?php endwhile; ?>
-                    </select>
+                    <div class="d-flex gap-2">
+                        <select name="category_id" id="article_category_id" class="form-select">
+                            <option value="">Sin categoria</option>
+                            <?php mysqli_data_seek($categories, 0); while ($c = mysqli_fetch_assoc($categories)): ?>
+                                <option value="<?php echo (int) $c["id"]; ?>"><?php echo htmlspecialchars($c["name"]); ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                        <button type="button" class="btn btn-soft-primary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#categoryModal" title="Nueva categoria">
+                            <i class="mdi mdi-plus"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -363,6 +391,29 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                 <button type="submit" class="btn btn-primary">Guardar</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal: Nueva categoria -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nueva categoria</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="categoryModalError" class="alert alert-danger" style="display:none;"></div>
+                <div class="mb-3">
+                    <label class="form-label">Nombre de la categoria</label>
+                    <input type="text" id="new_category_name" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveCategoryBtn">Guardar</button>
+            </div>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -436,6 +487,47 @@ function openEditModal(article) {
     var modal = new bootstrap.Modal(document.getElementById('articleModal'));
     modal.show();
 }
+
+document.getElementById('saveCategoryBtn').addEventListener('click', function () {
+    var nameInput = document.getElementById('new_category_name');
+    var errorBox = document.getElementById('categoryModalError');
+    var name = nameInput.value.trim();
+
+    errorBox.style.display = 'none';
+    if (name === '') {
+        errorBox.innerText = 'El nombre de la categoria es obligatorio.';
+        errorBox.style.display = 'block';
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('action', 'add_category');
+    formData.append('name', name);
+
+    fetch('admin-articles-list.php', { method: 'POST', body: formData })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (!data.ok) {
+                errorBox.innerText = data.error || 'No se pudo crear la categoria.';
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            var select = document.getElementById('article_category_id');
+            var option = document.createElement('option');
+            option.value = data.id;
+            option.text = data.name;
+            select.appendChild(option);
+            select.value = data.id;
+
+            nameInput.value = '';
+            bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+        })
+        .catch(function () {
+            errorBox.innerText = 'Error de conexion al crear la categoria.';
+            errorBox.style.display = 'block';
+        });
+});
 </script>
 <?php endif; ?>
 

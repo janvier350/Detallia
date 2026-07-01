@@ -24,22 +24,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($kit_id <= 0 || $client_id <= 0 || $delivery_date === "") {
         $error_msg = "Kit, cliente y fecha son obligatorios.";
     } else {
-        if ($form_id > 0) {
-            $sql  = "UPDATE kit_deliveries SET kit_id=?, client_id=?, management_type_id=?, delivery_date=?, notes=? WHERE id=?";
-            $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "iiissi", $kit_id, $client_id, $management_type_id, $delivery_date, $notes, $form_id);
-        } else {
-            $sql  = "INSERT INTO kit_deliveries (kit_id, client_id, management_type_id, delivery_date, delivered_by, notes) VALUES (?, ?, ?, ?, ?, ?)";
-            $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "iiisis", $kit_id, $client_id, $management_type_id, $delivery_date, $delivered_by, $notes);
-        }
+        mysqli_begin_transaction($link);
+        try {
+            if ($form_id > 0) {
+                $sql  = "UPDATE kit_deliveries SET kit_id=?, client_id=?, management_type_id=?, delivery_date=?, notes=? WHERE id=?";
+                $stmt = mysqli_prepare($link, $sql);
+                mysqli_stmt_bind_param($stmt, "iiissi", $kit_id, $client_id, $management_type_id, $delivery_date, $notes, $form_id);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception(mysqli_error($link));
+                }
+                $target_id = $form_id;
+            } else {
+                $sql  = "INSERT INTO kit_deliveries (kit_id, client_id, management_type_id, delivery_date, delivered_by, notes) VALUES (?, ?, ?, ?, ?, ?)";
+                $stmt = mysqli_prepare($link, $sql);
+                mysqli_stmt_bind_param($stmt, "iiisis", $kit_id, $client_id, $management_type_id, $delivery_date, $delivered_by, $notes);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception(mysqli_error($link));
+                }
+                $target_id = mysqli_insert_id($link);
+            }
 
-        if ($stmt && mysqli_stmt_execute($stmt)) {
+            // Reconstruir movimientos de stock (salida) segun el contenido del kit
+            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'entrega' AND reference_id = ?");
+            mysqli_stmt_bind_param($delMov, "i", $target_id);
+            mysqli_stmt_execute($delMov);
+
+            $kitItemsRes = mysqli_prepare($link, "SELECT article_id, quantity FROM kit_items WHERE kit_id = ?");
+            mysqli_stmt_bind_param($kitItemsRes, "i", $kit_id);
+            mysqli_stmt_execute($kitItemsRes);
+            $kitItemsResult = mysqli_stmt_get_result($kitItemsRes);
+
+            $movStmt = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'entrega', ?, 'entrega', ?, ?)");
+            while ($ki = mysqli_fetch_assoc($kitItemsResult)) {
+                $neg_qty = -1 * (float) $ki["quantity"];
+                mysqli_stmt_bind_param($movStmt, "idii", $ki["article_id"], $neg_qty, $target_id, $delivered_by);
+                if (!mysqli_stmt_execute($movStmt)) {
+                    throw new Exception(mysqli_error($link));
+                }
+            }
+
+            mysqli_commit($link);
             $_SESSION["flash_success"] = $form_id > 0 ? "Entrega actualizada correctamente." : "Entrega registrada correctamente.";
             header("location: admin-deliveries-list.php");
             exit;
-        } else {
-            $error_msg = "No se pudo guardar la entrega: " . mysqli_error($link);
+        } catch (Exception $e) {
+            mysqli_rollback($link);
+            $error_msg = "No se pudo guardar la entrega: " . $e->getMessage();
         }
     }
 
@@ -77,7 +107,8 @@ if ($resImg) {
 
 // Kit items preview for JS panel
 $kitsWithItems = [];
-$res = mysqli_query($link, "SELECT ki.kit_id, a.name AS article_name, ki.quantity, a.unit
+$res = mysqli_query($link, "SELECT ki.kit_id, ki.article_id, a.name AS article_name, ki.quantity, a.unit,
+                                    COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
                              FROM kit_items ki
                              JOIN articles a ON a.id = ki.article_id
                              ORDER BY ki.kit_id, a.name");
@@ -237,7 +268,13 @@ function renderKitPreview(kitId) {
     } else {
         var html = '<ul class="list-group list-group-flush">';
         items.forEach(function (it) {
-            html += '<li class="list-group-item px-0">' + it.article_name + ' <span class="badge bg-secondary float-end">' + it.quantity + ' ' + it.unit + '</span></li>';
+            var insufficient = parseFloat(it.stock) < parseFloat(it.quantity);
+            var badgeClass = insufficient ? 'bg-danger' : 'bg-secondary';
+            html += '<li class="list-group-item px-0">' + it.article_name + ' <span class="badge ' + badgeClass + ' float-end">' + it.quantity + ' ' + it.unit + '</span>';
+            if (insufficient) {
+                html += '<br><small class="text-danger">Stock insuficiente (disponible: ' + it.stock + ')</small>';
+            }
+            html += '</li>';
         });
         html += '</ul>';
         preview.innerHTML = html;

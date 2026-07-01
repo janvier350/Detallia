@@ -24,13 +24,23 @@ if (isset($_SESSION["flash_error"])) {
 if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $delivery_id = (int) ($_POST["id"] ?? 0);
     if ($delivery_id > 0) {
-        $sql  = "DELETE FROM kit_deliveries WHERE id = ?";
-        $stmt = mysqli_prepare($link, $sql);
-        mysqli_stmt_bind_param($stmt, "i", $delivery_id);
-        if (mysqli_stmt_execute($stmt)) {
+        mysqli_begin_transaction($link);
+        try {
+            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'entrega' AND reference_id = ?");
+            mysqli_stmt_bind_param($delMov, "i", $delivery_id);
+            mysqli_stmt_execute($delMov);
+
+            $stmt = mysqli_prepare($link, "DELETE FROM kit_deliveries WHERE id = ?");
+            mysqli_stmt_bind_param($stmt, "i", $delivery_id);
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception(mysqli_error($link));
+            }
+
+            mysqli_commit($link);
             $success_msg = "Entrega eliminada correctamente.";
-        } else {
-            $error_msg = "No se pudo eliminar la entrega: " . mysqli_error($link);
+        } catch (Exception $e) {
+            mysqli_rollback($link);
+            $error_msg = "No se pudo eliminar la entrega: " . $e->getMessage();
         }
     }
 }

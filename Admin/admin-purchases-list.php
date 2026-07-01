@@ -24,13 +24,23 @@ if (isset($_SESSION["flash_error"])) {
 if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $invoice_id = (int) ($_POST["id"] ?? 0);
     if ($invoice_id > 0) {
-        $sql = "DELETE FROM purchase_invoices WHERE id = ?";
-        $stmt = mysqli_prepare($link, $sql);
-        mysqli_stmt_bind_param($stmt, "i", $invoice_id);
-        if (mysqli_stmt_execute($stmt)) {
+        mysqli_begin_transaction($link);
+        try {
+            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'compra' AND reference_id = ?");
+            mysqli_stmt_bind_param($delMov, "i", $invoice_id);
+            mysqli_stmt_execute($delMov);
+
+            $stmt = mysqli_prepare($link, "DELETE FROM purchase_invoices WHERE id = ?");
+            mysqli_stmt_bind_param($stmt, "i", $invoice_id);
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception(mysqli_error($link));
+            }
+
+            mysqli_commit($link);
             $success_msg = "Factura eliminada correctamente.";
-        } else {
-            $error_msg = "No se pudo eliminar la factura: " . mysqli_error($link);
+        } catch (Exception $e) {
+            mysqli_rollback($link);
+            $error_msg = "No se pudo eliminar la factura: " . $e->getMessage();
         }
     }
 }

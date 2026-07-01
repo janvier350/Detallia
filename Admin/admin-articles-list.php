@@ -125,7 +125,8 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 $categories = mysqli_query($link, "SELECT id, name FROM article_categories ORDER BY name");
 
 $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.description, a.image_path, a.status, a.created_at,
-                                         c.id AS category_id, c.name AS category_name
+                                         c.id AS category_id, c.name AS category_name,
+                                         COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
                                   FROM articles a
                                   LEFT JOIN article_categories c ON c.id = a.category_id
                                   ORDER BY a.name ASC");
@@ -203,6 +204,7 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                 <th>SKU</th>
                                                 <th>Categoria</th>
                                                 <th>Unidad</th>
+                                                <th>Stock</th>
                                                 <th>Estado</th>
                                                 <?php if ($can_edit): ?><th class="text-end">Acciones</th><?php endif; ?>
                                             </tr>
@@ -230,6 +232,12 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                     <td><?php echo htmlspecialchars($a["sku"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($a["category_name"] ?? "Sin categoria"); ?></td>
                                                     <td><?php echo htmlspecialchars($a["unit"]); ?></td>
+                                                    <td>
+                                                        <?php $stockVal = (float) $a["stock"]; ?>
+                                                        <span class="badge bg-<?php echo $stockVal <= 0 ? 'danger' : ($stockVal <= 10 ? 'warning' : 'success'); ?>">
+                                                            <?php echo rtrim(rtrim(number_format($stockVal, 2, '.', ''), '0'), '.'); ?>
+                                                        </span>
+                                                    </td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $a["status"] === 'activo' ? 'success' : 'secondary'; ?>">
                                                             <?php echo htmlspecialchars($a["status"]); ?>

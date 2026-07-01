@@ -75,6 +75,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
 
+            // Reconstruir movimientos de stock (entrada) para esta factura
+            $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'compra' AND reference_id = ?");
+            mysqli_stmt_bind_param($delMov, "i", $target_id);
+            mysqli_stmt_execute($delMov);
+
+            $registered_by_mov = (int) $_SESSION["id"];
+            $movStmt = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'compra', ?, 'compra', ?, ?)");
+            foreach ($valid_items as $it) {
+                mysqli_stmt_bind_param($movStmt, "idii", $it["article_id"], $it["quantity"], $target_id, $registered_by_mov);
+                if (!mysqli_stmt_execute($movStmt)) {
+                    throw new Exception(mysqli_error($link));
+                }
+            }
+
             mysqli_commit($link);
             $_SESSION["flash_success"] = $form_id > 0 ? "Factura actualizada correctamente." : "Factura registrada correctamente.";
             header("location: admin-purchases-list.php");

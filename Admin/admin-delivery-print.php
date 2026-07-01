@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3]);
 
 $delivery_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
@@ -123,7 +124,7 @@ $items = mysqli_stmt_get_result($stmt);
                 <?php while ($it = mysqli_fetch_assoc($items)): ?>
                     <tr>
                         <td><?php echo htmlspecialchars($it["article_name"]); ?></td>
-                        <td><?php echo htmlspecialchars($it["quantity"]) . " " . htmlspecialchars($it["unit"]); ?></td>
+                        <td><?php echo format_qty($it["quantity"]) . " " . htmlspecialchars($it["unit"]); ?></td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>

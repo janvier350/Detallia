@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3]);
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
@@ -21,11 +22,13 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     $name        = trim($_POST["name"] ?? "");
     $sku         = trim($_POST["sku"] ?? "");
     $category_id = (int) ($_POST["category_id"] ?? 0);
+    $brand_id    = (int) ($_POST["brand_id"] ?? 0);
     $unit        = trim($_POST["unit"] ?? "unidad");
     $description = trim($_POST["description"] ?? "");
     $status      = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
 
     $category_id = $category_id > 0 ? $category_id : null;
+    $brand_id    = $brand_id > 0 ? $brand_id : null;
     $sku = $sku !== "" ? $sku : null;
 
     // Manejo de imagen
@@ -65,18 +68,18 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
                     $oldfile = __DIR__ . '/' . $oldrow["image_path"];
                     if (file_exists($oldfile)) @unlink($oldfile);
                 }
-                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, unit=?, description=?, status=?, image_path=? WHERE id=?";
+                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, brand_id=?, unit=?, description=?, status=?, image_path=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "ssissssi", $name, $sku, $category_id, $unit, $description, $status, $new_image_path, $article_id);
+                mysqli_stmt_bind_param($stmt, "ssiissssi", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $new_image_path, $article_id);
             } else {
-                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, unit=?, description=?, status=? WHERE id=?";
+                $sql  = "UPDATE articles SET name=?, sku=?, category_id=?, brand_id=?, unit=?, description=?, status=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "ssisssi", $name, $sku, $category_id, $unit, $description, $status, $article_id);
+                mysqli_stmt_bind_param($stmt, "ssiisssi", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $article_id);
             }
         } else {
-            $sql  = "INSERT INTO articles (name, sku, category_id, unit, description, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO articles (name, sku, category_id, brand_id, unit, description, status, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssissss", $name, $sku, $category_id, $unit, $description, $status, $new_image_path);
+            mysqli_stmt_bind_param($stmt, "ssiissss", $name, $sku, $category_id, $brand_id, $unit, $description, $status, $new_image_path);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
@@ -123,12 +126,15 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // Cargar categorias y articulos
 // ---------------------------------------------------------------
 $categories = mysqli_query($link, "SELECT id, name FROM article_categories ORDER BY name");
+$brands     = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
 
 $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.description, a.image_path, a.status, a.created_at,
                                          c.id AS category_id, c.name AS category_name,
+                                         b.id AS brand_id, b.name AS brand_name,
                                          COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
                                   FROM articles a
                                   LEFT JOIN article_categories c ON c.id = a.category_id
+                                  LEFT JOIN brands b ON b.id = a.brand_id
                                   ORDER BY a.name ASC");
 ?>
 <?php include 'layouts/head-main.php'; ?>
@@ -203,6 +209,7 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                 <th>Nombre</th>
                                                 <th>SKU</th>
                                                 <th>Categoria</th>
+                                                <th>Marca</th>
                                                 <th>Unidad</th>
                                                 <th>Stock</th>
                                                 <th>Estado</th>
@@ -231,11 +238,12 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                                                     <td><?php echo htmlspecialchars($a["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($a["sku"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($a["category_name"] ?? "Sin categoria"); ?></td>
+                                                    <td><?php echo htmlspecialchars($a["brand_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($a["unit"]); ?></td>
                                                     <td>
                                                         <?php $stockVal = (float) $a["stock"]; ?>
                                                         <span class="badge bg-<?php echo $stockVal <= 0 ? 'danger' : ($stockVal <= 10 ? 'warning' : 'success'); ?>">
-                                                            <?php echo rtrim(rtrim(number_format($stockVal, 2, '.', ''), '0'), '.'); ?>
+                                                            <?php echo format_qty($stockVal); ?>
                                                         </span>
                                                     </td>
                                                     <td>
@@ -305,6 +313,16 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.sku, a.unit, a.descripti
                         <option value="">Sin categoria</option>
                         <?php mysqli_data_seek($categories, 0); while ($c = mysqli_fetch_assoc($categories)): ?>
                             <option value="<?php echo (int) $c["id"]; ?>"><?php echo htmlspecialchars($c["name"]); ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Marca</label>
+                    <select name="brand_id" id="article_brand_id" class="form-select">
+                        <option value="">Sin marca</option>
+                        <?php mysqli_data_seek($brands, 0); while ($b = mysqli_fetch_assoc($brands)): ?>
+                            <option value="<?php echo (int) $b["id"]; ?>"><?php echo htmlspecialchars($b["name"]); ?></option>
                         <?php endwhile; ?>
                     </select>
                 </div>
@@ -386,6 +404,7 @@ function openCreateModal() {
     document.getElementById('article_name').value = '';
     document.getElementById('article_sku').value = '';
     document.getElementById('article_category_id').value = '';
+    document.getElementById('article_brand_id').value = '';
     document.getElementById('article_unit').value = 'unidad';
     document.getElementById('article_description').value = '';
     document.getElementById('article_status').value = 'activo';
@@ -400,6 +419,7 @@ function openEditModal(article) {
     document.getElementById('article_name').value = article.name;
     document.getElementById('article_sku').value = article.sku || '';
     document.getElementById('article_category_id').value = article.category_id || '';
+    document.getElementById('article_brand_id').value = article.brand_id || '';
     document.getElementById('article_unit').value = article.unit;
     document.getElementById('article_description').value = article.description || '';
     document.getElementById('article_status').value = article.status;

@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3]);
 
 // ---------------------------------------------------------------
@@ -264,7 +265,7 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
                                             <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                                 <?php echo htmlspecialchars($ls["name"]); ?>
                                                 <span class="badge bg-<?php echo ((float) $ls["stock"]) <= 0 ? 'danger' : 'warning'; ?>">
-                                                    <?php echo rtrim(rtrim(number_format((float) $ls["stock"], 2, '.', ''), '0'), '.') . ' ' . htmlspecialchars($ls["unit"]); ?>
+                                                    <?php echo format_qty($ls["stock"]) . ' ' . htmlspecialchars($ls["unit"]); ?>
                                                 </span>
                                             </li>
                                         <?php endwhile; ?>

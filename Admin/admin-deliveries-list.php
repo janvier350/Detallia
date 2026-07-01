@@ -74,8 +74,8 @@ $sql = "SELECT d.id, d.delivery_date, d.notes,
         FROM kit_deliveries d
         JOIN kits k ON k.id = d.kit_id
         JOIN clients c ON c.id = d.client_id
-        LEFT JOIN brands b ON b.id = c.brand_id
-        LEFT JOIN client_classifications cc ON cc.id = c.classification_id
+        LEFT JOIN brands b ON b.id = k.brand_id
+        LEFT JOIN client_classifications cc ON cc.id = k.classification_id
         LEFT JOIN management_types mt ON mt.id = d.management_type_id
         LEFT JOIN users u ON u.id = d.delivered_by";
 

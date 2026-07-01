@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3]);
 
 $delivery_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
@@ -114,6 +115,8 @@ $res = mysqli_query($link, "SELECT ki.kit_id, ki.article_id, a.name AS article_n
                              ORDER BY ki.kit_id, a.name");
 if ($res) {
     while ($row = mysqli_fetch_assoc($res)) {
+        $row["quantity"] = format_qty($row["quantity"]);
+        $row["stock"] = format_qty($row["stock"]);
         $kitsWithItems[(int) $row["kit_id"]][] = $row;
     }
 }

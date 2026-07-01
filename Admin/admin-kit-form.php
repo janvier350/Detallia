@@ -7,6 +7,10 @@ require_role([1, 2]);
 $kit_id    = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 $error_msg = "";
 
+$upload_dir    = __DIR__ . '/assets/images/kits/';
+$allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+$max_size      = 2 * 1024 * 1024;
+
 // ---------------------------------------------------------------
 // GUARDAR kit (crear o editar)
 // ---------------------------------------------------------------
@@ -31,11 +35,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $aid = (int) $aid;
         $qty = (float) ($items_qty[$idx] ?? 0);
         if ($aid > 0 && $qty > 0) {
-            $valid_items[$aid] = $qty; // key by article_id prevents duplicates
+            $valid_items[$aid] = $qty;
         }
     }
 
-    if ($name === "") {
+    // Manejo de imagen
+    $new_image_path = null;
+    $image_error    = "";
+
+    if (!empty($_FILES["image"]["name"])) {
+        $file  = $_FILES["image"];
+        $ftype = mime_content_type($file["tmp_name"]);
+        $fsize = $file["size"];
+        $ext   = strtolower(pathinfo($file["name"], PATHINFO_EXTENSION));
+
+        if (!in_array($ftype, $allowed_types)) {
+            $image_error = "Solo se permiten imagenes JPG, PNG, GIF o WEBP.";
+        } elseif ($fsize > $max_size) {
+            $image_error = "La imagen no puede superar 2 MB.";
+        } else {
+            $filename = 'kit_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (move_uploaded_file($file["tmp_name"], $upload_dir . $filename)) {
+                $new_image_path = 'assets/images/kits/' . $filename;
+            } else {
+                $image_error = "No se pudo guardar la imagen. Verifica permisos del directorio.";
+            }
+        }
+    }
+
+    if ($image_error !== "") {
+        $error_msg = $image_error;
+    } elseif ($name === "") {
         $error_msg = "El nombre del kit es obligatorio.";
     } elseif (empty($valid_items)) {
         $error_msg = "Agrega al menos un articulo al kit.";
@@ -43,12 +73,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         mysqli_begin_transaction($link);
         try {
             if ($form_id > 0) {
-                $sql  = "UPDATE kits SET name=?, brand_id=?, management_type_id=?, classification_id=?, description=?, status=? WHERE id=?";
-                $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "siiissi", $name, $brand_id, $management_type_id, $classification_id, $description, $status, $form_id);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception(mysqli_error($link));
+                if ($new_image_path !== null) {
+                    // Borrar imagen anterior
+                    $old = mysqli_query($link, "SELECT image_path FROM kits WHERE id = " . $form_id);
+                    if ($old && ($oldrow = mysqli_fetch_assoc($old)) && $oldrow["image_path"]) {
+                        $oldfile = __DIR__ . '/' . $oldrow["image_path"];
+                        if (file_exists($oldfile)) @unlink($oldfile);
+                    }
+                    $sql  = "UPDATE kits SET name=?, brand_id=?, management_type_id=?, classification_id=?, description=?, status=?, image_path=? WHERE id=?";
+                    $stmt = mysqli_prepare($link, $sql);
+                    mysqli_stmt_bind_param($stmt, "siiisssi", $name, $brand_id, $management_type_id, $classification_id, $description, $status, $new_image_path, $form_id);
+                } else {
+                    $sql  = "UPDATE kits SET name=?, brand_id=?, management_type_id=?, classification_id=?, description=?, status=? WHERE id=?";
+                    $stmt = mysqli_prepare($link, $sql);
+                    mysqli_stmt_bind_param($stmt, "siiissi", $name, $brand_id, $management_type_id, $classification_id, $description, $status, $form_id);
                 }
+                if (!mysqli_stmt_execute($stmt)) throw new Exception(mysqli_error($link));
 
                 $del = mysqli_prepare($link, "DELETE FROM kit_items WHERE kit_id = ?");
                 mysqli_stmt_bind_param($del, "i", $form_id);
@@ -57,21 +97,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $target_id = $form_id;
             } else {
                 $registered_by = (int) $_SESSION["id"];
-                $sql  = "INSERT INTO kits (name, brand_id, management_type_id, classification_id, description, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $sql  = "INSERT INTO kits (name, brand_id, management_type_id, classification_id, description, status, image_path, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "siiissi", $name, $brand_id, $management_type_id, $classification_id, $description, $status, $registered_by);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception(mysqli_error($link));
-                }
+                mysqli_stmt_bind_param($stmt, "siiisssi", $name, $brand_id, $management_type_id, $classification_id, $description, $status, $new_image_path, $registered_by);
+                if (!mysqli_stmt_execute($stmt)) throw new Exception(mysqli_error($link));
                 $target_id = mysqli_insert_id($link);
             }
 
             $itemStmt = mysqli_prepare($link, "INSERT INTO kit_items (kit_id, article_id, quantity) VALUES (?, ?, ?)");
             foreach ($valid_items as $aid => $qty) {
                 mysqli_stmt_bind_param($itemStmt, "iid", $target_id, $aid, $qty);
-                if (!mysqli_stmt_execute($itemStmt)) {
-                    throw new Exception(mysqli_error($link));
-                }
+                if (!mysqli_stmt_execute($itemStmt)) throw new Exception(mysqli_error($link));
             }
 
             mysqli_commit($link);
@@ -85,7 +121,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $kit = [
-        "id" => $form_id, "name" => $name,
+        "id" => $form_id, "name" => $name, "image_path" => null,
         "brand_id" => $brand_id, "management_type_id" => $management_type_id,
         "classification_id" => $classification_id, "description" => $description, "status" => $status,
     ];
@@ -94,11 +130,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $kit_items_data[] = ["article_id" => $aid, "quantity" => $qty];
     }
 } else {
-    $kit = ["id" => 0, "name" => "", "brand_id" => null, "management_type_id" => null, "classification_id" => null, "description" => "", "status" => "activo"];
+    $kit = ["id" => 0, "name" => "", "image_path" => null, "brand_id" => null, "management_type_id" => null, "classification_id" => null, "description" => "", "status" => "activo"];
     $kit_items_data = [];
 
     if ($kit_id > 0) {
-        $stmt = mysqli_prepare($link, "SELECT id, name, brand_id, management_type_id, classification_id, description, status FROM kits WHERE id = ?");
+        $stmt = mysqli_prepare($link, "SELECT id, name, brand_id, management_type_id, classification_id, description, status, image_path FROM kits WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $kit_id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -116,7 +152,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$brands          = mysqli_query($link, "SELECT id, name FROM brands WHERE status = 'activo' ORDER BY name");
+$brands           = mysqli_query($link, "SELECT id, name FROM brands WHERE status = 'activo' ORDER BY name");
 $management_types = mysqli_query($link, "SELECT id, name FROM management_types ORDER BY id");
 $classifications  = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY id");
 $articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHERE status = 'activo' ORDER BY name");
@@ -164,7 +200,7 @@ $articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHE
                     <div class="col-12">
                         <div class="card">
                             <div class="card-body">
-                                <form method="post" id="kitForm">
+                                <form method="post" enctype="multipart/form-data" id="kitForm">
                                     <input type="hidden" name="id" value="<?php echo (int) $kit["id"]; ?>">
 
                                     <div class="row">
@@ -222,6 +258,27 @@ $articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHE
                                         <textarea name="description" class="form-control" rows="2"><?php echo htmlspecialchars($kit["description"]); ?></textarea>
                                     </div>
 
+                                    <!-- Imagen de referencia del kit -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Foto de referencia del kit</label>
+                                        <?php if (!empty($kit["image_path"])): ?>
+                                            <div class="mb-2" id="currentImageWrapper">
+                                                <img id="currentImage" src="<?php echo htmlspecialchars($kit["image_path"]); ?>"
+                                                     alt="Imagen actual" style="height:100px;border-radius:6px;object-fit:cover;">
+                                                <p class="text-muted mt-1 mb-0" style="font-size:0.8rem;">Imagen actual — sube una nueva para reemplazarla</p>
+                                            </div>
+                                        <?php else: ?>
+                                            <div id="currentImageWrapper" style="display:none;">
+                                                <img id="currentImage" src="" alt="" style="height:100px;border-radius:6px;object-fit:cover;">
+                                            </div>
+                                        <?php endif; ?>
+                                        <input type="file" name="image" id="kit_image" class="form-control" accept="image/*">
+                                        <div class="form-text">JPG, PNG, GIF o WEBP · max 2 MB</div>
+                                        <div id="imagePreviewWrapper" class="mt-2" style="display:none;">
+                                            <img id="imagePreview" src="" alt="" style="height:100px;border-radius:6px;object-fit:cover;">
+                                        </div>
+                                    </div>
+
                                     <hr>
                                     <h5 class="mb-3">Articulos del kit</h5>
 
@@ -266,6 +323,22 @@ $articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHE
 <script src="assets/js/app.js"></script>
 
 <script>
+// Vista previa de imagen
+document.getElementById('kit_image').addEventListener('change', function () {
+    var wrap    = document.getElementById('imagePreviewWrapper');
+    var preview = document.getElementById('imagePreview');
+    if (this.files && this.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            preview.src = e.target.result;
+            wrap.style.display = 'block';
+        };
+        reader.readAsDataURL(this.files[0]);
+    } else {
+        wrap.style.display = 'none';
+    }
+});
+
 var ARTICLES = <?php
     $articleList = [];
     mysqli_data_seek($articles, 0);

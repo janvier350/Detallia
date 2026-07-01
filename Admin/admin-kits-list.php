@@ -39,7 +39,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     }
 }
 
-$kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status,
+$kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status, k.image_path,
                                       b.name AS brand_name, mt.name AS management_type_name, cc.name AS classification_name,
                                       (SELECT COUNT(*) FROM kit_items ki WHERE ki.kit_id = k.id) AS item_count
                                FROM kits k
@@ -54,6 +54,7 @@ $kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status,
 
     <title>Kits | Detallia</title>
     <?php include 'layouts/head.php'; ?>
+    <link rel="stylesheet" href="assets/libs/glightbox/css/glightbox.min.css">
     <?php include 'layouts/head-style.php'; ?>
 
 </head>
@@ -113,6 +114,7 @@ $kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status,
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
+                                                <th style="width:60px">Foto</th>
                                                 <th>#</th>
                                                 <th>Nombre</th>
                                                 <th>Marca</th>
@@ -126,6 +128,21 @@ $kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status,
                                         <tbody>
                                             <?php while ($k = mysqli_fetch_assoc($kits)): ?>
                                                 <tr>
+                                                    <td>
+                                                        <?php if (!empty($k["image_path"])): ?>
+                                                            <a href="<?php echo htmlspecialchars($k["image_path"]); ?>"
+                                                               class="image-popup"
+                                                               data-glightbox="title: <?php echo htmlspecialchars(addslashes($k['name'])); ?>">
+                                                                <img src="<?php echo htmlspecialchars($k["image_path"]); ?>"
+                                                                     alt="<?php echo htmlspecialchars($k['name']); ?>"
+                                                                     style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;">
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <div style="width:40px;height:40px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;">
+                                                                <i class="mdi mdi-gift-outline text-muted"></i>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?php echo (int) $k["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($k["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($k["brand_name"] ?? "—"); ?></td>
@@ -173,6 +190,8 @@ $kits = mysqli_query($link, "SELECT k.id, k.name, k.description, k.status,
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+<script src="assets/libs/glightbox/js/glightbox.min.js"></script>
+<script>GLightbox({ selector: '.image-popup', title: false });</script>
 
 </body>
 

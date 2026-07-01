@@ -81,7 +81,7 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
 // ---------------------------------------------------------------
 $stockEvents = [];
 $res = mysqli_query($link, "SELECT sm.movement_type, sm.quantity, sm.created_at, sm.reference_type, sm.reference_id,
-                                    a.name AS article_name, a.unit,
+                                    a.name AS article_name, a.unit, a.image_path,
                                     COALESCE(u.full_name, u.username) AS created_by_name
                              FROM stock_movements sm
                              JOIN articles a ON a.id = sm.article_id
@@ -339,6 +339,9 @@ while ($row = mysqli_fetch_assoc($res)) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div id="movementImageWrap" class="text-center mb-3" style="display:none;">
+                    <img id="movementImage" src="" alt="Articulo" style="max-width:100%;max-height:180px;border-radius:6px;object-fit:cover;">
+                </div>
                 <dl class="row mb-0">
                     <dt class="col-5">Tipo</dt>
                     <dd class="col-7" id="movementType"></dd>
@@ -416,7 +419,8 @@ var calendarEvents = STOCK_EVENTS.map(function (ev) {
             created_at: ev.created_at,
             reference_type: ev.reference_type,
             reference_id: ev.reference_id,
-            created_by_name: ev.created_by_name
+            created_by_name: ev.created_by_name,
+            image_path: ev.image_path
         }
     };
 });
@@ -452,6 +456,15 @@ var inventoryCalendar = new FullCalendar.Calendar(calendarEl, {
         document.getElementById('movementDate').innerText = info.event.start.toLocaleString('es-EC');
         document.getElementById('movementOrigin').innerText = (ORIGIN_LABELS[p.movement_type] || '—') + (p.reference_id ? ' #' + p.reference_id : '');
         document.getElementById('movementUser').innerText = p.created_by_name || '—';
+
+        var imageWrap = document.getElementById('movementImageWrap');
+        var image = document.getElementById('movementImage');
+        if (p.image_path) {
+            image.src = p.image_path;
+            imageWrap.style.display = '';
+        } else {
+            imageWrap.style.display = 'none';
+        }
 
         movementModal.show();
     }

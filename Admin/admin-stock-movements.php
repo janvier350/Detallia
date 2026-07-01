@@ -20,7 +20,7 @@ if ($filter_article > 0) {
     $params[] = $filter_article;
     $types   .= "i";
 }
-if (in_array($filter_type, ["compra", "entrega", "ajuste"], true)) {
+if (in_array($filter_type, ["compra", "entrega", "ajuste", "devolucion"], true)) {
     $where[]  = "sm.movement_type = ?";
     $params[] = $filter_type;
     $types   .= "s";
@@ -112,6 +112,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                             <option value="compra" <?php echo $filter_type === "compra" ? "selected" : ""; ?>>Compra (entrada)</option>
                                             <option value="entrega" <?php echo $filter_type === "entrega" ? "selected" : ""; ?>>Entrega (salida)</option>
                                             <option value="ajuste" <?php echo $filter_type === "ajuste" ? "selected" : ""; ?>>Ajuste</option>
+                                            <option value="devolucion" <?php echo $filter_type === "devolucion" ? "selected" : ""; ?>>Devolucion (entrada)</option>
                                         </select>
                                     </div>
                                     <?php if ($filter_article || $filter_type): ?>
@@ -143,6 +144,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                                         'compra' => 'Compra #' . (int) $m["reference_id"],
                                                         'entrega' => 'Entrega #' . (int) $m["reference_id"],
                                                         'ajuste' => 'Ajuste manual',
+                                                        'devolucion' => 'Devolucion #' . (int) $m["reference_id"],
                                                     ][$m["movement_type"]] ?? '—';
                                                 ?>
                                                 <tr>

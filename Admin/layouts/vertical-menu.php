@@ -358,6 +358,13 @@
                 </li>
 
                 <li>
+                    <a href="admin-returns-list.php">
+                        <i data-feather="corner-up-left"></i>
+                        <span>Devoluciones</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="admin-stock-movements.php">
                         <i data-feather="bar-chart-2"></i>
                         <span>Inventario</span>

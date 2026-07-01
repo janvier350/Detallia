@@ -75,6 +75,18 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
                                           GROUP BY a.id, a.name, a.unit
                                           HAVING stock <= 10
                                           ORDER BY stock ASC LIMIT 6");
+
+// ---------------------------------------------------------------
+// Movimientos de inventario para el calendario
+// ---------------------------------------------------------------
+$stockEvents = [];
+$res = mysqli_query($link, "SELECT sm.movement_type, sm.quantity, sm.created_at, a.name AS article_name, a.unit
+                             FROM stock_movements sm
+                             JOIN articles a ON a.id = sm.article_id
+                             ORDER BY sm.created_at DESC LIMIT 300");
+while ($row = mysqli_fetch_assoc($res)) {
+    $stockEvents[] = $row;
+}
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -277,6 +289,26 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header align-items-center d-flex">
+                                <h4 class="card-title mb-0 flex-grow-1">Calendario de movimientos de inventario</h4>
+                                <a href="admin-stock-movements.php" class="btn btn-sm btn-soft-primary">Ver historial completo</a>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex flex-wrap gap-3 mb-3">
+                                    <span class="badge bg-success-subtle text-success"><i class="mdi mdi-circle-medium"></i> Compra (entrada)</span>
+                                    <span class="badge bg-danger-subtle text-danger"><i class="mdi mdi-circle-medium"></i> Entrega (salida)</span>
+                                    <span class="badge bg-info-subtle text-info"><i class="mdi mdi-circle-medium"></i> Devolucion (entrada)</span>
+                                    <span class="badge bg-secondary-subtle text-secondary"><i class="mdi mdi-circle-medium"></i> Ajuste</span>
+                                </div>
+                                <div id="inventory-calendar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -289,6 +321,7 @@ $lowStockArticles = mysqli_query($link, "SELECT a.name, a.unit, COALESCE(SUM(sm.
 <?php include 'layouts/vendor-scripts.php'; ?>
 
 <script src="assets/libs/apexcharts/apexcharts.min.js"></script>
+<script src="assets/libs/fullcalendar/index.global.min.js"></script>
 <script src="assets/js/app.js"></script>
 
 <script>
@@ -313,6 +346,40 @@ var options = {
 };
 var chart = new ApexCharts(document.querySelector("#deliveries-chart"), options);
 chart.render();
+
+var STOCK_EVENTS = <?php echo json_encode($stockEvents, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var MOVEMENT_COLORS = { compra: '#34c38f', entrega: '#f46a6a', devolucion: '#50a5f1', ajuste: '#74788d' };
+var MOVEMENT_LABELS = { compra: 'Compra', entrega: 'Entrega', devolucion: 'Devolucion', ajuste: 'Ajuste' };
+
+var calendarEvents = STOCK_EVENTS.map(function (ev) {
+    var qty = parseFloat(ev.quantity);
+    var sign = qty >= 0 ? '+' : '';
+    return {
+        title: MOVEMENT_LABELS[ev.movement_type] + ': ' + ev.article_name + ' (' + sign + qty + ' ' + ev.unit + ')',
+        start: ev.created_at.replace(' ', 'T'),
+        color: MOVEMENT_COLORS[ev.movement_type] || '#74788d'
+    };
+});
+
+var calendarEl = document.getElementById('inventory-calendar');
+var inventoryCalendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    height: 600,
+    headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,dayGridWeek,listMonth'
+    },
+    buttonText: {
+        today: 'Hoy',
+        month: 'Mes',
+        week: 'Semana',
+        list: 'Lista'
+    },
+    events: calendarEvents,
+    dayMaxEvents: 3
+});
+inventoryCalendar.render();
 </script>
 
 </body>

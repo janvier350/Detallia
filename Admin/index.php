@@ -95,6 +95,13 @@ while ($row = mysqli_fetch_assoc($res)) {
 
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
+    <style>
+        .fc-event.evt-compra { background-color: #34c38f !important; border-color: #34c38f !important; color: #fff !important; }
+        .fc-event.evt-entrega { background-color: #f46a6a !important; border-color: #f46a6a !important; color: #fff !important; }
+        .fc-event.evt-devolucion { background-color: #50a5f1 !important; border-color: #50a5f1 !important; color: #fff !important; }
+        .fc-event.evt-ajuste { background-color: #74788d !important; border-color: #74788d !important; color: #fff !important; }
+        .fc-event-title, .fc-list-event-title { color: #fff !important; }
+    </style>
 </head>
 
 <?php include 'layouts/body.php'; ?>
@@ -348,7 +355,6 @@ var chart = new ApexCharts(document.querySelector("#deliveries-chart"), options)
 chart.render();
 
 var STOCK_EVENTS = <?php echo json_encode($stockEvents, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-var MOVEMENT_COLORS = { compra: '#34c38f', entrega: '#f46a6a', devolucion: '#50a5f1', ajuste: '#74788d' };
 var MOVEMENT_LABELS = { compra: 'Compra', entrega: 'Entrega', devolucion: 'Devolucion', ajuste: 'Ajuste' };
 
 var calendarEvents = STOCK_EVENTS.map(function (ev) {
@@ -357,7 +363,7 @@ var calendarEvents = STOCK_EVENTS.map(function (ev) {
     return {
         title: MOVEMENT_LABELS[ev.movement_type] + ': ' + ev.article_name + ' (' + sign + qty + ' ' + ev.unit + ')',
         start: ev.created_at.replace(' ', 'T'),
-        color: MOVEMENT_COLORS[ev.movement_type] || '#74788d'
+        classNames: ['evt-' + ev.movement_type]
     };
 });
 

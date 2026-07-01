@@ -392,7 +392,8 @@
                 </li>
                 <?php endif; ?>
 
-                <?php if (!$is_solicitante): ?>
+                <?php if ($role_id_now === 1): ?>
+                <li class="menu-title">Referencia de plantilla (solo Administrador)</li>
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
@@ -624,16 +625,6 @@
 
             </ul>
 
-            <div class="card sidebar-alert border-0 text-center mx-4 mb-0 mt-5">
-                <div class="card-body">
-                    <img src="assets/images/giftbox.png" alt="">
-                    <div class="mt-4">
-                        <h5 class="alertcard-title font-size-16"><?php echo $language["Unlimited_Access"]; ?></h5>
-                        <p class="font-size-13"><?php echo $language["Upgrade_your_plan_from_a_Free_trial,_to_select_‘Business_Plan’"]; ?>.</p>
-                        <a href="#!" class="btn btn-primary mt-2"><?php echo $language["Upgrade_Now"]; ?></a>
-                    </div>
-                </div>
-            </div>
         </div>
         <!-- Sidebar -->
     </div>

@@ -60,7 +60,7 @@ $sql = "SELECT d.id, d.delivery_date, d.notes,
                k.name AS kit_name, c.name AS client_name,
                b.name AS brand_name, cc.name AS classification_name,
                mt.name AS management_type_name,
-               u.username AS delivered_by_name
+               COALESCE(u.full_name, u.username) AS delivered_by_name
         FROM kit_deliveries d
         JOIN kits k ON k.id = d.kit_id
         JOIN clients c ON c.id = d.client_id
@@ -200,6 +200,9 @@ $kits_filter    = mysqli_query($link, "SELECT id, name FROM kits ORDER BY name")
                                                     <td><?php echo htmlspecialchars($d["management_type_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($d["delivered_by_name"] ?? "—"); ?></td>
                                                     <td class="text-end">
+                                                        <a href="admin-delivery-print.php?id=<?php echo (int) $d["id"]; ?>" target="_blank" class="btn btn-sm btn-soft-secondary">
+                                                            <i class="mdi mdi-printer"></i>
+                                                        </a>
                                                         <a href="admin-delivery-form.php?id=<?php echo (int) $d["id"]; ?>" class="btn btn-sm btn-soft-primary">
                                                             <i class="mdi mdi-pencil"></i>
                                                         </a>

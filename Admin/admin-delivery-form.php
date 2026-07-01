@@ -66,6 +66,15 @@ $kits             = mysqli_query($link, "SELECT id, name FROM kits WHERE status 
 $clients          = mysqli_query($link, "SELECT id, name FROM clients WHERE status = 'activo' ORDER BY name") ?: false;
 $management_types = mysqli_query($link, "SELECT id, name FROM management_types ORDER BY id") ?: false;
 
+// Imagenes de los kits para el panel de vista previa
+$kitsImages = [];
+$resImg = mysqli_query($link, "SELECT id, image_path FROM kits");
+if ($resImg) {
+    while ($row = mysqli_fetch_assoc($resImg)) {
+        $kitsImages[(int) $row["id"]] = $row["image_path"];
+    }
+}
+
 // Kit items preview for JS panel
 $kitsWithItems = [];
 $res = mysqli_query($link, "SELECT ki.kit_id, a.name AS article_name, ki.quantity, a.unit
@@ -184,10 +193,21 @@ if ($res) {
                     <div class="col-lg-4">
                         <div class="card">
                             <div class="card-body">
-                                <h5 class="card-title">Contenido del kit</h5>
+                                <h5 class="card-title">Kit seleccionado</h5>
+                                <div id="kitImageWrap" class="text-center mb-3" style="display:none;">
+                                    <img id="kitImage" src="" alt="Kit" style="max-width:100%;max-height:220px;border-radius:6px;object-fit:cover;">
+                                </div>
+                                <h6 class="text-muted">Contenido del kit</h6>
                                 <div id="kitPreview">
                                     <p class="text-muted">Selecciona un kit para ver su contenido.</p>
                                 </div>
+                                <?php if ((int) $delivery["id"] > 0): ?>
+                                    <div class="mt-3">
+                                        <a href="admin-delivery-print.php?id=<?php echo (int) $delivery["id"]; ?>" target="_blank" class="btn btn-outline-secondary w-100">
+                                            <i class="mdi mdi-printer me-1"></i> Imprimir documento de entrega
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -206,21 +226,32 @@ if ($res) {
 <script src="assets/js/app.js"></script>
 
 <script>
-var KITS_ITEMS = <?php echo json_encode($kitsWithItems, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var KITS_ITEMS  = <?php echo json_encode($kitsWithItems, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var KITS_IMAGES = <?php echo json_encode($kitsImages, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
 function renderKitPreview(kitId) {
     var preview = document.getElementById('kitPreview');
     var items   = KITS_ITEMS[kitId];
     if (!items || items.length === 0) {
         preview.innerHTML = '<p class="text-muted">Este kit no tiene articulos registrados.</p>';
-        return;
+    } else {
+        var html = '<ul class="list-group list-group-flush">';
+        items.forEach(function (it) {
+            html += '<li class="list-group-item px-0">' + it.article_name + ' <span class="badge bg-secondary float-end">' + it.quantity + ' ' + it.unit + '</span></li>';
+        });
+        html += '</ul>';
+        preview.innerHTML = html;
     }
-    var html = '<ul class="list-group list-group-flush">';
-    items.forEach(function (it) {
-        html += '<li class="list-group-item px-0">' + it.article_name + ' <span class="badge bg-secondary float-end">' + it.quantity + ' ' + it.unit + '</span></li>';
-    });
-    html += '</ul>';
-    preview.innerHTML = html;
+
+    var imageWrap = document.getElementById('kitImageWrap');
+    var image     = document.getElementById('kitImage');
+    var imagePath = KITS_IMAGES[kitId];
+    if (imagePath) {
+        image.src = imagePath;
+        imageWrap.style.display = '';
+    } else {
+        imageWrap.style.display = 'none';
+    }
 }
 
 var kitSelect = document.getElementById('kitSelect');

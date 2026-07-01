@@ -120,6 +120,7 @@ $items = mysqli_stmt_get_result($stmt);
 
     <div class="no-print" style="margin-top: 30px;">
         <button onclick="window.print()">Imprimir / Guardar como PDF</button>
+        <a href="admin-requests-list.php" style="margin-left: 10px; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #2d3748; display: inline-block;">Volver a <?php echo $is_solicitante ? "mis solicitudes" : "solicitudes"; ?></a>
     </div>
 
 </body>

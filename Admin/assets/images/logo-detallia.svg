@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none">
+  <!-- Gift box icon -->
+  <rect x="2" y="16" width="26" height="20" rx="2" fill="#556ee6"/>
+  <rect x="0" y="12" width="30" height="6" rx="1.5" fill="#3f55cc"/>
+  <!-- Ribbon vertical -->
+  <rect x="13" y="12" width="4" height="24" fill="#7b8ff0"/>
+  <!-- Ribbon horizontal bow left -->
+  <path d="M15 12 C10 8 4 9 5 13 C6 17 13 14 15 12Z" fill="#7b8ff0"/>
+  <!-- Ribbon horizontal bow right -->
+  <path d="M15 12 C20 8 26 9 25 13 C24 17 17 14 15 12Z" fill="#7b8ff0"/>
+  <!-- Dot center bow -->
+  <circle cx="15" cy="12" r="2" fill="#556ee6"/>
+
+  <!-- Detallia text -->
+  <text x="36" y="28" font-family="'IBM Plex Sans', Arial, sans-serif" font-size="18" font-weight="600" fill="#2d3748" letter-spacing="-0.3">Detallia</text>
+</svg>

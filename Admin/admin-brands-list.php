@@ -2,9 +2,13 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
-require_role([1, 2, 3]);
+require_once 'layouts/helpers.php';
+require_role([1, 2, 3, 5]);
+require_module_view('marcas');
 
-$can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
+$can_create = can('marcas', 'create');
+$can_edit   = can('marcas', 'edit');
+$can_delete = can('marcas', 'delete');
 
 $success_msg = "";
 $error_msg = "";
@@ -12,8 +16,12 @@ $error_msg = "";
 // ---------------------------------------------------------------
 // CREAR / EDITAR marca
 // ---------------------------------------------------------------
-if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "save") {
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "save") {
     $brand_id    = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
+    if (($brand_id > 0 && !$can_edit) || ($brand_id === 0 && !$can_create)) {
+        header('location: pages-403.php');
+        exit;
+    }
     $name        = trim($_POST["name"] ?? "");
     $description = trim($_POST["description"] ?? "");
     $status      = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
@@ -46,7 +54,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // ---------------------------------------------------------------
 // ELIMINAR marca
 // ---------------------------------------------------------------
-if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
+if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $brand_id = (int) ($_POST["id"] ?? 0);
     if ($brand_id > 0) {
         $sql  = "DELETE FROM brands WHERE id = ?";
@@ -120,7 +128,7 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <h5 class="card-title mb-0">Marcas / Empresas clientes</h5>
-                                    <?php if ($can_edit): ?>
+                                    <?php if ($can_create): ?>
                                         <button type="button" class="btn btn-primary waves-effect waves-light" data-bs-toggle="modal" data-bs-target="#brandModal" onclick="openCreateModal()">
                                             <i class="mdi mdi-plus me-1"></i> Nueva marca
                                         </button>
@@ -135,7 +143,7 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
                                                 <th>Nombre</th>
                                                 <th>Descripcion</th>
                                                 <th>Estado</th>
-                                                <?php if ($can_edit): ?><th class="text-end">Acciones</th><?php endif; ?>
+                                                <?php if ($can_edit || $can_delete): ?><th class="text-end">Acciones</th><?php endif; ?>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -149,12 +157,15 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
                                                             <?php echo htmlspecialchars($b["status"]); ?>
                                                         </span>
                                                     </td>
-                                                    <?php if ($can_edit): ?>
+                                                    <?php if ($can_edit || $can_delete): ?>
                                                     <td class="text-end">
+                                                        <?php if ($can_edit): ?>
                                                         <button type="button" class="btn btn-sm btn-soft-primary"
                                                             onclick='openEditModal(<?php echo json_encode($b, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
                                                             <i class="mdi mdi-pencil"></i>
                                                         </button>
+                                                        <?php endif; ?>
+                                                        <?php if ($can_delete): ?>
                                                         <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta marca?');">
                                                             <input type="hidden" name="action" value="delete">
                                                             <input type="hidden" name="id" value="<?php echo (int) $b["id"]; ?>">
@@ -162,6 +173,7 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
                                                                 <i class="mdi mdi-delete"></i>
                                                             </button>
                                                         </form>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <?php endif; ?>
                                                 </tr>
@@ -182,7 +194,7 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
     </div>
 </div>
 
-<?php if ($can_edit): ?>
+<?php if ($can_create || $can_edit): ?>
 <div class="modal fade" id="brandModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form method="post" class="modal-content">
@@ -226,7 +238,7 @@ $brands = mysqli_query($link, "SELECT id, name, description, status, created_at 
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
 
-<?php if ($can_edit): ?>
+<?php if ($can_create || $can_edit): ?>
 <script>
 function openCreateModal() {
     document.getElementById('brandModalLabel').innerText = 'Nueva marca';

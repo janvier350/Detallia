@@ -3,7 +3,10 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3]);
+require_role([1, 2, 3, 5]);
+require_module_view('devoluciones');
+
+$can_create = can('devoluciones', 'create');
 
 $success_msg = "";
 $error_msg = "";
@@ -93,9 +96,11 @@ while ($row = mysqli_fetch_assoc($res)) {
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Historial de devoluciones</h5>
+                                    <?php if ($can_create): ?>
                                     <a href="admin-return-form.php" class="btn btn-primary waves-effect waves-light">
                                         <i class="mdi mdi-plus me-1"></i> Registrar devolucion
                                     </a>
+                                    <?php endif; ?>
                                 </div>
 
                                 <div class="table-responsive">

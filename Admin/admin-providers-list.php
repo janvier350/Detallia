@@ -2,7 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
-require_role([1, 2, 3]); // Todos los roles pueden ver; solo Admin/Jefe pueden editar
+require_role([1, 2, 3, 5]); // Todos los roles pueden ver; solo Admin/Jefe pueden editar
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
 

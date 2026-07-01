@@ -309,6 +309,13 @@
                         <span>Usuarios</span>
                     </a>
                 </li>
+
+                <li>
+                    <a href="admin-permissions.php">
+                        <i data-feather="shield"></i>
+                        <span>Permisos</span>
+                    </a>
+                </li>
                 <?php endif; ?>
 
                 <li>
@@ -375,12 +382,15 @@
                 </li>
                 <?php endif; ?>
 
+                <?php $role_id_now = (int) ($_SESSION["role_id"] ?? 0); ?>
+                <?php if ($role_id_now !== 5): ?>
                 <li>
                     <a href="admin-requests-list.php">
                         <i data-feather="clipboard"></i>
                         <span><?php echo $is_solicitante ? "Mis solicitudes" : "Solicitudes"; ?></span>
                     </a>
                 </li>
+                <?php endif; ?>
 
                 <?php if (!$is_solicitante): ?>
                 <li>

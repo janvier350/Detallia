@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3]);
+require_role([1, 2, 3, 5]);
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
 

@@ -2,8 +2,12 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
-require_role([1, 2, 3]); // Todos los roles pueden ver y registrar compras
+require_once 'layouts/helpers.php';
+require_role([1, 2, 3, 5]); // Consultor solo puede ver; el resto puede registrar
+require_module_view('compras');
 
+$can_create = can('compras', 'create');
+$can_edit_invoice = can('compras', 'edit');
 $can_delete = in_array((int) $_SESSION["role_id"], [1, 2], true);
 
 $success_msg = "";
@@ -157,9 +161,11 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Facturas de compra</h5>
+                                    <?php if ($can_create): ?>
                                     <a href="admin-purchase-form.php" class="btn btn-primary waves-effect waves-light">
                                         <i class="mdi mdi-plus me-1"></i> Nueva factura
                                     </a>
+                                    <?php endif; ?>
                                 </div>
 
                                 <form method="get" class="row g-2 mb-3">
@@ -213,9 +219,11 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                                     <td><?php echo htmlspecialchars($inv["currency"]); ?> <?php echo number_format((float) $inv["total_amount"], 2); ?></td>
                                                     <td><?php echo htmlspecialchars($inv["registered_by_name"] ?? "-"); ?></td>
                                                     <td class="text-end">
+                                                        <?php if ($can_edit_invoice): ?>
                                                         <a href="admin-purchase-form.php?id=<?php echo (int) $inv["id"]; ?>" class="btn btn-sm btn-soft-primary">
                                                             <i class="mdi mdi-pencil"></i>
                                                         </a>
+                                                        <?php endif; ?>
                                                         <?php if ($can_delete): ?>
                                                             <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta factura y sus detalles?');">
                                                                 <input type="hidden" name="action" value="delete">

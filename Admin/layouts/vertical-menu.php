@@ -292,6 +292,9 @@
             <ul class="metismenu list-unstyled" id="side-menu">
                 <li class="menu-title" data-key="t-menu"><?php echo $language["Menu"]; ?></li>
 
+                <?php $is_solicitante = isset($_SESSION["role_id"]) && (int) $_SESSION["role_id"] === 4; ?>
+
+                <?php if (!$is_solicitante): ?>
                 <li>
                     <a href="index.php">
                         <i data-feather="home"></i>
@@ -370,7 +373,16 @@
                         <span>Inventario</span>
                     </a>
                 </li>
+                <?php endif; ?>
 
+                <li>
+                    <a href="admin-requests-list.php">
+                        <i data-feather="clipboard"></i>
+                        <span><?php echo $is_solicitante ? "Mis solicitudes" : "Solicitudes"; ?></span>
+                    </a>
+                </li>
+
+                <?php if (!$is_solicitante): ?>
                 <li>
                     <a href="javascript: void(0);" class="has-arrow">
                         <i data-feather="grid"></i>
@@ -598,6 +610,7 @@
                         </li>
                     </ul>
                 </li>
+                <?php endif; ?>
 
             </ul>
 

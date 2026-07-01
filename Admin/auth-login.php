@@ -2,9 +2,9 @@
 // Initialize the session
 session_start();
 
-// Check if the user is already logged in, if yes then redirect him to index page
+// Check if the user is already logged in, if yes then redirect him to his landing page
 if (isset($_SESSION["loggedin"]) && $_SESSION["loggedin"] === true) {
-    header("location: index.php");
+    header("location: " . ((int) ($_SESSION["role_id"] ?? 0) === 4 ? "admin-requests-list.php" : "index.php"));
     exit;
 }
 // Include config file
@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $_SESSION["role_name"] = $role_name;
 
                             // Redirect user to welcome page
-                            header("location: index.php");
+                            header("location: " . ((int) $role_id === 4 ? "admin-requests-list.php" : "index.php"));
                         } else {
                             // Display an error message if password is not valid
                             $password_err = "The password you entered was not valid.";

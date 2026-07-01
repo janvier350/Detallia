@@ -177,7 +177,7 @@ $users = mysqli_query($link, "SELECT u.id, u.useremail, u.username, u.full_name,
                                                     <td><?php echo htmlspecialchars($u["full_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($u["useremail"]); ?></td>
                                                     <td>
-                                                        <span class="badge bg-<?php echo $u["role_id"] == 1 ? 'danger' : ($u["role_id"] == 2 ? 'warning' : 'info'); ?>">
+                                                        <span class="badge bg-<?php echo $u["role_id"] == 1 ? 'danger' : ($u["role_id"] == 2 ? 'warning' : ($u["role_id"] == 4 ? 'secondary' : 'info')); ?>">
                                                             <?php echo htmlspecialchars($u["role_name"]); ?>
                                                         </span>
                                                     </td>

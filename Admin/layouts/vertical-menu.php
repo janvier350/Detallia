@@ -377,6 +377,13 @@ $pendingRequestsCount = count($pendingRequests);
                 </li>
                 <?php endif; ?>
 
+                <li>
+                    <a href="admin-manual.php">
+                        <i data-feather="book-open"></i>
+                        <span>Manual de usuario</span>
+                    </a>
+                </li>
+
                 <?php if ($role_id_now === 1): ?>
                 <li class="menu-title">Referencia de plantilla (solo Administrador)</li>
                 <li>

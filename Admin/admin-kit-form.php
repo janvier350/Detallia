@@ -155,7 +155,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 $brands           = mysqli_query($link, "SELECT id, name FROM brands WHERE status = 'activo' ORDER BY name");
 $management_types = mysqli_query($link, "SELECT id, name FROM management_types ORDER BY id");
 $classifications  = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY id");
-$articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHERE status = 'activo' ORDER BY name");
+$articles         = mysqli_query($link, "SELECT a.id, a.name, a.unit, b.name AS brand_name
+                                          FROM articles a
+                                          LEFT JOIN brands b ON b.id = a.brand_id
+                                          WHERE a.status = 'activo'
+                                          ORDER BY a.name");
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -287,6 +291,7 @@ $articles         = mysqli_query($link, "SELECT id, name, unit FROM articles WHE
                                             <thead class="table-light">
                                                 <tr>
                                                     <th style="min-width:250px">Articulo</th>
+                                                    <th style="width:150px">Marca</th>
                                                     <th style="width:140px">Cantidad</th>
                                                     <th style="width:50px"></th>
                                                 </tr>
@@ -343,10 +348,12 @@ var ARTICLES = <?php
     $articleList = [];
     mysqli_data_seek($articles, 0);
     while ($a = mysqli_fetch_assoc($articles)) {
-        $articleList[] = ["id" => (int) $a["id"], "name" => $a["name"], "unit" => $a["unit"]];
+        $articleList[] = ["id" => (int) $a["id"], "name" => $a["name"], "unit" => $a["unit"], "brand_name" => $a["brand_name"] ?: "—"];
     }
     echo json_encode($articleList, JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>;
+var ARTICLES_BY_ID = {};
+ARTICLES.forEach(function (a) { ARTICLES_BY_ID[a.id] = a; });
 
 var EXISTING_ITEMS = <?php echo json_encode($kit_items_data, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
@@ -356,7 +363,7 @@ function buildArticleOptions(selectedId) {
     var html = '<option value="">Selecciona...</option>';
     ARTICLES.forEach(function (a) {
         var sel = (selectedId && parseInt(selectedId) === a.id) ? 'selected' : '';
-        html += '<option value="' + a.id + '" ' + sel + '>' + a.name + ' (' + a.unit + ')</option>';
+        html += '<option value="' + a.id + '" ' + sel + '>' + a.name + ' (' + a.brand_name + ' / ' + a.unit + ')</option>';
     });
     return html;
 }
@@ -365,10 +372,22 @@ function addRow(item) {
     item = item || {};
     var tr = document.createElement('tr');
     tr.innerHTML =
-        '<td><select name="item_article_id[]" class="form-select" required>' + buildArticleOptions(item.article_id) + '</select></td>' +
+        '<td><select name="item_article_id[]" class="form-select article-select" required>' + buildArticleOptions(item.article_id) + '</select></td>' +
+        '<td class="item-brand text-muted"></td>' +
         '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control" value="' + (item.quantity || 1) + '" required></td>' +
         '<td><button type="button" class="btn btn-sm btn-soft-danger remove-row"><i class="mdi mdi-delete"></i></button></td>';
     itemsBody.appendChild(tr);
+
+    var select = tr.querySelector('.article-select');
+    var brandCell = tr.querySelector('.item-brand');
+
+    function updateBrand() {
+        var a = ARTICLES_BY_ID[select.value];
+        brandCell.innerText = a ? a.brand_name : '';
+    }
+    updateBrand();
+    select.addEventListener('change', updateBrand);
+
     tr.querySelector('.remove-row').addEventListener('click', function () { tr.remove(); });
 }
 

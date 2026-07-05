@@ -145,14 +145,54 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 $categories = mysqli_query($link, "SELECT id, name FROM article_categories ORDER BY name");
 $brands     = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
 
-$articles = mysqli_query($link, "SELECT a.id, a.name, a.unit, a.description, a.image_path, a.status, a.created_at,
-                                         c.id AS category_id, c.name AS category_name,
-                                         b.id AS brand_id, b.name AS brand_name,
-                                         COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
-                                  FROM articles a
-                                  LEFT JOIN article_categories c ON c.id = a.category_id
-                                  LEFT JOIN brands b ON b.id = a.brand_id
-                                  ORDER BY a.name ASC");
+// ---------------------------------------------------------------
+// Filtros
+// ---------------------------------------------------------------
+$filter_category = isset($_GET["category_id"]) ? (int) $_GET["category_id"] : 0;
+$filter_brand    = isset($_GET["brand_id"]) ? (int) $_GET["brand_id"] : 0;
+$filter_search   = isset($_GET["q"]) ? trim($_GET["q"]) : "";
+
+$where  = [];
+$params = [];
+$types  = "";
+
+if ($filter_category > 0) {
+    $where[]  = "a.category_id = ?";
+    $params[] = $filter_category;
+    $types   .= "i";
+}
+if ($filter_brand > 0) {
+    $where[]  = "a.brand_id = ?";
+    $params[] = $filter_brand;
+    $types   .= "i";
+}
+if ($filter_search !== "") {
+    $where[]  = "a.name LIKE ?";
+    $params[] = "%" . $filter_search . "%";
+    $types   .= "s";
+}
+
+$articlesSql = "SELECT a.id, a.name, a.unit, a.description, a.image_path, a.status, a.created_at,
+                       c.id AS category_id, c.name AS category_name,
+                       b.id AS brand_id, b.name AS brand_name,
+                       COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
+                FROM articles a
+                LEFT JOIN article_categories c ON c.id = a.category_id
+                LEFT JOIN brands b ON b.id = a.brand_id";
+
+if ($where) {
+    $articlesSql .= " WHERE " . implode(" AND ", $where);
+}
+$articlesSql .= " ORDER BY a.name ASC";
+
+if ($params) {
+    $stmt = mysqli_prepare($link, $articlesSql);
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+    mysqli_stmt_execute($stmt);
+    $articles = mysqli_stmt_get_result($stmt);
+} else {
+    $articles = mysqli_query($link, $articlesSql);
+}
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -216,6 +256,42 @@ $articles = mysqli_query($link, "SELECT a.id, a.name, a.unit, a.description, a.i
                                         </button>
                                     <?php endif; ?>
                                 </div>
+
+                                <form method="get" class="row g-2 mb-3">
+                                    <div class="col-auto">
+                                        <input type="text" name="q" class="form-control" placeholder="Buscar por nombre..." value="<?php echo htmlspecialchars($filter_search); ?>">
+                                    </div>
+                                    <div class="col-auto">
+                                        <select name="category_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="0">Todas las categorias</option>
+                                            <?php mysqli_data_seek($categories, 0); while ($cf = mysqli_fetch_assoc($categories)): ?>
+                                                <option value="<?php echo (int) $cf["id"]; ?>" <?php echo $filter_category == $cf["id"] ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($cf["name"]); ?>
+                                                </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-auto">
+                                        <select name="brand_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="0">Todas las marcas</option>
+                                            <?php mysqli_data_seek($brands, 0); while ($bf = mysqli_fetch_assoc($brands)): ?>
+                                                <option value="<?php echo (int) $bf["id"]; ?>" <?php echo $filter_brand == $bf["id"] ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($bf["name"]); ?>
+                                                </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="mdi mdi-magnify"></i> Buscar
+                                        </button>
+                                    </div>
+                                    <?php if ($filter_category || $filter_brand || $filter_search !== ""): ?>
+                                        <div class="col-auto">
+                                            <a href="admin-articles-list.php" class="btn btn-light">Limpiar filtros</a>
+                                        </div>
+                                    <?php endif; ?>
+                                </form>
 
                                 <div class="table-responsive">
                                     <table class="table table-centered table-nowrap mb-0">

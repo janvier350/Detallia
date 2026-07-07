@@ -23,18 +23,22 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     $email        = trim($_POST["email"] ?? "");
     $notes        = trim($_POST["notes"] ?? "");
     $status       = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
+    $brand_id          = (int) ($_POST["brand_id"] ?? 0);
+    $classification_id = (int) ($_POST["classification_id"] ?? 0);
+    $brand_id          = $brand_id > 0 ? $brand_id : null;
+    $classification_id = $classification_id > 0 ? $classification_id : null;
 
     if ($name === "") {
         $error_msg = "El nombre de la empresa es obligatorio.";
     } else {
         if ($client_id > 0) {
-            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, provincia=?, phone=?, email=?, notes=?, status=? WHERE id=?";
+            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, provincia=?, phone=?, email=?, notes=?, status=?, brand_id=?, classification_id=? WHERE id=?";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "sssssssssi", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $client_id);
+            mysqli_stmt_bind_param($stmt, "sssssssssiii", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id, $client_id);
         } else {
-            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, provincia, phone, email, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, provincia, phone, email, notes, status, brand_id, classification_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "sssssssss", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status);
+            mysqli_stmt_bind_param($stmt, "sssssssssii", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
@@ -75,13 +79,20 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // ---------------------------------------------------------------
 $filter_provincia = trim($_GET["provincia"] ?? "");
 
+$clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address, c.ciudad, c.provincia, c.status,
+                      c.brand_id, c.classification_id, b.name AS brand_name, cl.name AS classification_name
+               FROM clients c
+               LEFT JOIN brands b ON b.id = c.brand_id
+               LEFT JOIN client_classifications cl ON cl.id = c.classification_id";
+
 if ($filter_provincia !== "") {
-    $stmt_c = mysqli_prepare($link, "SELECT id, name, contact_name, phone, email, address, ciudad, provincia, status FROM clients WHERE provincia = ? ORDER BY name ASC");
+    $clientsSql .= " WHERE c.provincia = ?";
+    $stmt_c = mysqli_prepare($link, $clientsSql . " ORDER BY c.name ASC");
     mysqli_stmt_bind_param($stmt_c, "s", $filter_provincia);
     mysqli_stmt_execute($stmt_c);
     $clients = mysqli_stmt_get_result($stmt_c);
 } else {
-    $clients = mysqli_query($link, "SELECT id, name, contact_name, phone, email, address, ciudad, provincia, status FROM clients ORDER BY name ASC");
+    $clients = mysqli_query($link, $clientsSql . " ORDER BY c.name ASC");
 }
 
 $provincias_res = mysqli_query($link, "SELECT DISTINCT provincia FROM clients WHERE provincia IS NOT NULL AND provincia <> '' ORDER BY provincia");
@@ -89,6 +100,9 @@ $provincias = [];
 while ($p = mysqli_fetch_row($provincias_res)) {
     $provincias[] = $p[0];
 }
+
+$brands_list = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
+$classifications_list = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY name");
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -145,9 +159,16 @@ while ($p = mysqli_fetch_row($provincias_res)) {
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Listado de clientes</h5>
                                     <?php if ($can_edit): ?>
-                                        <button type="button" class="btn btn-primary waves-effect waves-light" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="openCreateModal()">
-                                            <i class="mdi mdi-plus me-1"></i> Nuevo cliente
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <?php if (in_array((int) $_SESSION["role_id"], [1, 2], true)): ?>
+                                                <a href="admin-clients-import.php" class="btn btn-soft-primary waves-effect waves-light">
+                                                    <i class="mdi mdi-file-excel-outline me-1"></i> Importar desde Excel
+                                                </a>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-primary waves-effect waves-light" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="openCreateModal()">
+                                                <i class="mdi mdi-plus me-1"></i> Nuevo cliente
+                                            </button>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
 
@@ -178,6 +199,8 @@ while ($p = mysqli_fetch_row($provincias_res)) {
                                                 <th>#</th>
                                                 <th>Empresa</th>
                                                 <th>Contacto</th>
+                                                <th>Marca</th>
+                                                <th>Clasificacion</th>
                                                 <th>Telefono</th>
                                                 <th>Ciudad</th>
                                                 <th>Provincia</th>
@@ -191,6 +214,14 @@ while ($p = mysqli_fetch_row($provincias_res)) {
                                                     <td><?php echo (int) $c["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($c["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["brand_name"] ?? "—"); ?></td>
+                                                    <td>
+                                                        <?php if ($c["classification_name"]): ?>
+                                                            <span class="badge bg-primary-subtle text-primary"><?php echo htmlspecialchars($c["classification_name"]); ?></span>
+                                                        <?php else: ?>
+                                                            —
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?php echo htmlspecialchars($c["phone"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["ciudad"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["provincia"] ?? ""); ?></td>
@@ -255,6 +286,27 @@ while ($p = mysqli_fetch_row($provincias_res)) {
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Marca / Empresa que obsequia</label>
+                        <select name="brand_id" id="client_brand_id" class="form-select">
+                            <option value="">Sin marca</option>
+                            <?php mysqli_data_seek($brands_list, 0); while ($bl = mysqli_fetch_assoc($brands_list)): ?>
+                                <option value="<?php echo (int) $bl["id"]; ?>"><?php echo htmlspecialchars($bl["name"]); ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Clasificacion</label>
+                        <select name="classification_id" id="client_classification_id" class="form-select">
+                            <option value="">Sin clasificacion</option>
+                            <?php mysqli_data_seek($classifications_list, 0); while ($cl = mysqli_fetch_assoc($classifications_list)): ?>
+                                <option value="<?php echo (int) $cl["id"]; ?>"><?php echo htmlspecialchars($cl["name"]); ?></option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Direccion</label>
                     <input type="text" name="address" id="client_address" class="form-control">
@@ -316,6 +368,8 @@ function openCreateModal() {
     document.getElementById('client_id').value = '';
     document.getElementById('client_name').value = '';
     document.getElementById('client_contact_name').value = '';
+    document.getElementById('client_brand_id').value = '';
+    document.getElementById('client_classification_id').value = '';
     document.getElementById('client_address').value = '';
     document.getElementById('client_ciudad').value = '';
     document.getElementById('client_provincia').value = '';
@@ -330,6 +384,8 @@ function openEditModal(c) {
     document.getElementById('client_id').value = c.id;
     document.getElementById('client_name').value = c.name;
     document.getElementById('client_contact_name').value = c.contact_name || '';
+    document.getElementById('client_brand_id').value = c.brand_id || '';
+    document.getElementById('client_classification_id').value = c.classification_id || '';
     document.getElementById('client_address').value = c.address || '';
     document.getElementById('client_ciudad').value = c.ciudad || '';
     document.getElementById('client_provincia').value = c.provincia || '';

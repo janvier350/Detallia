@@ -59,8 +59,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$articles = mysqli_query($link, "SELECT id, name, unit FROM articles WHERE status = 'activo' ORDER BY name");
-$kits     = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activo' ORDER BY name");
+$articles = mysqli_query($link, "SELECT a.id, a.name, a.unit, c.name AS category_name, b.name AS brand_name
+                                  FROM articles a
+                                  LEFT JOIN article_categories c ON c.id = a.category_id
+                                  LEFT JOIN brands b ON b.id = a.brand_id
+                                  WHERE a.status = 'activo'
+                                  ORDER BY a.name");
+$kits     = mysqli_query($link, "SELECT k.id, k.name, b.name AS brand_name
+                                  FROM kits k
+                                  LEFT JOIN brands b ON b.id = k.brand_id
+                                  WHERE k.status = 'activo'
+                                  ORDER BY k.name");
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -68,6 +77,7 @@ $kits     = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activ
 
     <title>Nueva solicitud | Detallia</title>
     <?php include 'layouts/head.php'; ?>
+    <link href="assets/libs/choices.js/public/assets/styles/choices.min.css" rel="stylesheet" type="text/css" />
     <?php include 'layouts/head-style.php'; ?>
 
 </head>
@@ -165,12 +175,19 @@ $kits     = mysqli_query($link, "SELECT id, name FROM kits WHERE status = 'activ
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+<script src="assets/libs/choices.js/public/assets/scripts/choices.min.js"></script>
 
 <script>
 var ARTICLES = <?php
     $articleList = [];
     while ($a = mysqli_fetch_assoc($articles)) {
-        $articleList[] = ["id" => (int) $a["id"], "name" => $a["name"], "unit" => $a["unit"]];
+        $articleList[] = [
+            "id" => (int) $a["id"],
+            "name" => $a["name"],
+            "unit" => $a["unit"],
+            "category_name" => $a["category_name"] ?: "Sin categoria",
+            "brand_name" => $a["brand_name"] ?: "—",
+        ];
     }
     echo json_encode($articleList, JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>;
@@ -178,20 +195,22 @@ var ARTICLES = <?php
 var KITS = <?php
     $kitList = [];
     while ($k = mysqli_fetch_assoc($kits)) {
-        $kitList[] = ["id" => (int) $k["id"], "name" => $k["name"]];
+        $kitList[] = ["id" => (int) $k["id"], "name" => $k["name"], "brand_name" => $k["brand_name"] ?: "—"];
     }
     echo json_encode($kitList, JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>;
 
 var itemsBody = document.getElementById('itemsBody');
 
-function buildRefOptions(type) {
-    var list = type === 'kit' ? KITS : ARTICLES;
-    var html = '<option value="">Selecciona...</option>';
-    list.forEach(function (item) {
-        html += '<option value="' + item.id + '">' + item.name + '</option>';
+function buildRefChoices(type) {
+    if (type === 'kit') {
+        return KITS.map(function (item) {
+            return { value: String(item.id), label: item.name + ' (' + item.brand_name + ')' };
+        });
+    }
+    return ARTICLES.map(function (item) {
+        return { value: String(item.id), label: item.name + ' (' + item.category_name + ' / ' + item.brand_name + ')' };
     });
-    return html;
 }
 
 function addRow() {
@@ -201,17 +220,30 @@ function addRow() {
             '<option value="articulo">Articulo</option>' +
             '<option value="kit">Kit</option>' +
         '</select></td>' +
-        '<td><select name="item_ref[]" class="form-select item-ref" required>' + buildRefOptions('articulo') + '</select></td>' +
+        '<td><select name="item_ref[]" class="item-ref" required></select></td>' +
         '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control" value="1" required></td>' +
         '<td><button type="button" class="btn btn-sm btn-soft-danger remove-row"><i class="mdi mdi-delete"></i></button></td>';
     itemsBody.appendChild(tr);
 
     var typeSelect = tr.querySelector('.item-type');
     var refSelect = tr.querySelector('.item-ref');
+
+    var choicesInstance = new Choices(refSelect, {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Buscar articulo...',
+        itemSelectText: '',
+        shouldSort: false,
+        placeholder: true,
+        placeholderValue: 'Selecciona...'
+    });
+    choicesInstance.setChoices(buildRefChoices('articulo'), 'value', 'label', true);
+
     typeSelect.addEventListener('change', function () {
-        refSelect.innerHTML = buildRefOptions(this.value);
+        choicesInstance.clearStore();
+        choicesInstance.setChoices(buildRefChoices(this.value), 'value', 'label', true);
     });
     tr.querySelector('.remove-row').addEventListener('click', function () {
+        choicesInstance.destroy();
         tr.remove();
     });
 }

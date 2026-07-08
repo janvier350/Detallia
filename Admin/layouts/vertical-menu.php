@@ -338,6 +338,15 @@ $pendingRequestsCount = count($pendingRequests);
                     </a>
                 </li>
 
+                <?php if (in_array((int) ($_SESSION["role_id"] ?? 0), [1, 2], true)): ?>
+                <li>
+                    <a href="admin-validation-links.php">
+                        <i data-feather="link"></i>
+                        <span>Validacion de contactos</span>
+                    </a>
+                </li>
+                <?php endif; ?>
+
                 <li>
                     <a href="admin-kits-list.php">
                         <i data-feather="gift"></i>

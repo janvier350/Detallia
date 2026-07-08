@@ -9,7 +9,7 @@ $error_msg   = "";
 $success_msg = "";
 $step        = "upload"; // upload | review | done
 $parsedRows  = [];
-$importSummary = null;
+$generatedLink = null;
 
 // ---------------------------------------------------------------
 // Lector nativo de XLSX (sin dependencias externas)
@@ -276,9 +276,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
 }
 
 // ---------------------------------------------------------------
-// PASO 2: importar filas seleccionadas
+// PASO 2: enviar las filas seleccionadas a validacion (pendientes)
 // ---------------------------------------------------------------
-if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "import") {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage") {
     $names               = $_POST["name"] ?? [];
     $contactNames        = $_POST["contact_name"] ?? [];
     $ciudades            = $_POST["ciudad"] ?? [];
@@ -287,13 +287,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
     $classificationIds   = $_POST["classification_id"] ?? [];
     $brandIds            = $_POST["brand_id"] ?? [];
     $includes            = $_POST["include"] ?? [];
+    $linkLabel           = trim($_POST["link_label"] ?? "") ?: ("Importacion " . date("d/m/Y H:i"));
 
-    $imported = 0;
-    $skippedDuplicate = 0;
+    $staged = 0;
     $skippedEmpty = 0;
 
-    $stmt = mysqli_prepare($link, "INSERT INTO clients (name, contact_name, address, ciudad, provincia, phone, email, notes, status, brand_id, classification_id)
-                                    VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, 'activo', ?, ?)");
+    $token = bin2hex(random_bytes(24));
+    $createdBy = (int) $_SESSION["id"];
+    $linkStmt = mysqli_prepare($link, "INSERT INTO validation_links (token, label, created_by) VALUES (?, ?, ?)");
+    mysqli_stmt_bind_param($linkStmt, "ssi", $token, $linkLabel, $createdBy);
+    mysqli_stmt_execute($linkStmt);
+    $linkId = mysqli_insert_id($link);
+
+    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, ciudad, address, notes, brand_id, classification_id)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($names as $idx => $name) {
         if (empty($includes[$idx])) {
@@ -313,15 +320,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
         $brandId = (int) ($brandIds[$idx] ?? 0);
         $brandId = $brandId > 0 ? $brandId : null;
 
-        mysqli_stmt_bind_param($stmt, "sssssii", $name, $contact, $address, $ciudad, $note, $brandId, $classId);
+        mysqli_stmt_bind_param($stmt, "isssssii", $linkId, $name, $contact, $ciudad, $address, $note, $brandId, $classId);
         if (mysqli_stmt_execute($stmt)) {
-            $imported++;
-        } else {
-            $skippedDuplicate++;
+            $staged++;
         }
     }
 
-    $importSummary = ["imported" => $imported, "skipped_duplicate" => $skippedDuplicate, "skipped_empty" => $skippedEmpty];
+    $generatedLink = [
+        "token" => $token,
+        "label" => $linkLabel,
+        "staged" => $staged,
+        "skipped_empty" => $skippedEmpty,
+    ];
     $step = "done";
 }
 ?>
@@ -395,14 +405,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
                             <div class="card">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                                        <h5 class="card-title mb-0">Paso 2: revisa y clasifica (<?php echo count($parsedRows); ?> filas)</h5>
+                                        <h5 class="card-title mb-0">Paso 2: revisa y envia a validacion (<?php echo count($parsedRows); ?> filas)</h5>
                                         <div>
                                             <span class="badge bg-secondary-subtle text-secondary me-1">Gris = ya existe / duplicado, sin marcar</span>
                                         </div>
                                     </div>
 
+                                    <p class="text-muted">
+                                        Esto no crea los clientes todavia. Se genera un enlace temporal para que un encargado
+                                        confirme cada contacto (autenticandose con su correo institucional); recien despues de
+                                        confirmados se importan a Clientes desde <a href="admin-validation-links.php">Enlaces de validacion</a>.
+                                    </p>
+
                                     <form method="post" id="importForm">
-                                        <input type="hidden" name="action" value="import">
+                                        <input type="hidden" name="action" value="stage">
+                                        <div class="mb-3" style="max-width:400px;">
+                                            <label class="form-label">Nombre de este lote (para identificarlo despues)</label>
+                                            <input type="text" name="link_label" class="form-control" placeholder="Ej. Base combinada julio 2026">
+                                        </div>
                                         <div class="table-responsive" style="max-height:600px;">
                                             <table class="table table-bordered table-sm align-middle">
                                                 <thead class="table-light" style="position:sticky;top:0;">
@@ -471,7 +491,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
                                         </div>
 
                                         <div class="mt-3">
-                                            <button type="submit" class="btn btn-primary">Importar seleccionados</button>
+                                            <button type="submit" class="btn btn-primary">Generar enlace de validacion</button>
                                             <a href="admin-clients-list.php" class="btn btn-light">Cancelar</a>
                                         </div>
                                     </form>
@@ -481,18 +501,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
                     </div>
                 <?php endif; ?>
 
-                <?php if ($step === "done"): ?>
+                <?php if ($step === "done" && $generatedLink): ?>
+                    <?php
+                        $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+                        $baseUrl = $scheme . "://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']);
+                        $validateUrl = $baseUrl . "/validate.php?token=" . $generatedLink["token"];
+                    ?>
                     <div class="row">
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-body">
-                                    <h5 class="card-title mb-3">Importacion completada</h5>
-                                    <ul>
-                                        <li><strong><?php echo $importSummary["imported"]; ?></strong> clientes importados correctamente.</li>
-                                        <li><strong><?php echo $importSummary["skipped_duplicate"]; ?></strong> omitidos por nombre duplicado (ya existian o se repetian).</li>
-                                        <li><strong><?php echo $importSummary["skipped_empty"]; ?></strong> omitidos por no tener nombre.</li>
-                                    </ul>
-                                    <a href="admin-clients-list.php" class="btn btn-primary">Ver listado de clientes</a>
+                                    <h5 class="card-title mb-3">Enlace de validacion generado</h5>
+                                    <p>
+                                        <strong><?php echo (int) $generatedLink["staged"]; ?></strong> contactos quedaron pendientes de validacion
+                                        en el lote "<?php echo htmlspecialchars($generatedLink["label"]); ?>".
+                                        <?php if ($generatedLink["skipped_empty"] > 0): ?>
+                                            (<?php echo (int) $generatedLink["skipped_empty"]; ?> omitidos por no tener nombre.)
+                                        <?php endif; ?>
+                                    </p>
+                                    <div class="input-group mb-3" style="max-width:700px;">
+                                        <input type="text" class="form-control" id="validateUrlInput" value="<?php echo htmlspecialchars($validateUrl); ?>" readonly>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('validateUrlInput').value); this.innerText='Copiado!';">
+                                            Copiar
+                                        </button>
+                                    </div>
+                                    <p class="text-muted">
+                                        Comparte este enlace con la persona encargada de validar. Debera confirmar su correo
+                                        institucional con un codigo antes de poder revisar y confirmar los contactos.
+                                    </p>
+                                    <a href="admin-validation-links.php" class="btn btn-primary">Ver enlaces de validacion</a>
+                                    <a href="admin-clients-list.php" class="btn btn-light">Ir a Clientes</a>
                                 </div>
                             </div>
                         </div>

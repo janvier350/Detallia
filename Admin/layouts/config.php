@@ -20,8 +20,16 @@ if($link === false){
 // Ecuador esta en UTC-5 todo el ano (sin horario de verano)
 mysqli_query($link, "SET time_zone = '-05:00'");
 
-$gmailid = ''; // YOUR gmail email
-$gmailpassword = ''; // YOUR gmail password
-$gmailusername = ''; // YOUR gmail User name
+// Credenciales de correo para el envio de notificaciones (recuperar contrasena,
+// codigos de verificacion, etc). Puede ser Gmail o el correo institucional de
+// Buadnet: cualquier proveedor que soporte SMTP funciona, solo ajusta SMTP_HOST,
+// SMTP_PORT y SMTP_ENCRYPTION segun los datos que te de tu proveedor de correo.
+$gmailid = ''; // Correo remitente, ej: notificaciones@buadnet.com
+$gmailpassword = ''; // Contrasena o contrasena de aplicacion
+$gmailusername = 'Detallia'; // Nombre que vera el destinatario como remitente
+
+define('SMTP_HOST', 'smtp.gmail.com'); // ej: smtp.gmail.com o el que te de tu proveedor (ej: mail.buadnet.com)
+define('SMTP_PORT', 587); // 587 (STARTTLS) o 465 (SSL), segun tu proveedor
+define('SMTP_ENCRYPTION', 'tls'); // 'tls' o 'ssl'
 
 ?>

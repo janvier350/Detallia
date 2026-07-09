@@ -148,6 +148,9 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                 <th>Zona</th>
                                                 <th>Contacto interno</th>
                                                 <th>RUC/CI</th>
+                                                <th>Meses fact.</th>
+                                                <th>Estatus</th>
+                                                <th>Alerta</th>
                                                 <th>Ciudad</th>
                                                 <th>Marca</th>
                                                 <th>Clasificacion</th>
@@ -165,6 +168,9 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                     <td><?php echo htmlspecialchars($p["zona"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["contacto_interno"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["ruc_ci"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["meses_fact"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["estatus_excel"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["alerta"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["ciudad"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["brand_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($p["classification_name"] ?? "—"); ?></td>

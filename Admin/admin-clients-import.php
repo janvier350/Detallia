@@ -229,6 +229,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
                 $obsequioDe = trim($get("OBSEQUIO DE"));
                 $brand_guess = best_match($obsequioDe, $brandsMap);
 
+                $mesesFact    = trim($get("MESES FACT."));
+                $detalleMeses = trim($get("DETALLE MESES"));
+                $alerta       = trim($get("ALERTA"));
+
                 $dupKey = mb_strtolower($name);
                 $duplicate_in_batch = isset($seenInBatch[$dupKey]);
                 $seenInBatch[$dupKey] = true;
@@ -241,6 +245,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
                     "zona" => $zona,
                     "contacto_interno" => $contactoInterno,
                     "ruc_ci" => $ruc,
+                    "meses_fact" => $mesesFact,
+                    "detalle_meses" => $detalleMeses,
+                    "estatus_excel" => $estatus,
+                    "alerta" => $alerta,
                     "ciudad" => trim($get("CIUDAD")),
                     "address" => trim($get("DIRECCIÓN")),
                     "notes" => "",
@@ -279,6 +287,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
     $classificationIds   = $_POST["classification_id"] ?? [];
     $brandIds            = $_POST["brand_id"] ?? [];
     $includes            = $_POST["include"] ?? [];
+    $mesesFacts          = $_POST["meses_fact"] ?? [];
+    $detalleMesesArr     = $_POST["detalle_meses"] ?? [];
+    $estatusExcelArr     = $_POST["estatus_excel"] ?? [];
+    $alertas             = $_POST["alerta"] ?? [];
     $linkLabel           = trim($_POST["link_label"] ?? "") ?: ("Importacion " . date("d/m/Y H:i"));
 
     $staged = 0;
@@ -291,8 +303,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
     mysqli_stmt_execute($linkStmt);
     $linkId = mysqli_insert_id($link);
 
-    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, ciudad, address, notes, brand_id, classification_id)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, meses_fact, detalle_meses, estatus_excel, alerta, ciudad, address, notes, brand_id, classification_id)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($names as $idx => $name) {
         if (empty($includes[$idx])) {
@@ -303,20 +315,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
             $skippedEmpty++;
             continue;
         }
-        $contact   = trim($contactNames[$idx] ?? "");
-        $oficina   = trim($oficinas[$idx] ?? "");
-        $zona      = trim($zonas[$idx] ?? "");
-        $contacto  = trim($contactosInternos[$idx] ?? "");
-        $ruc       = trim($rucs[$idx] ?? "");
-        $ciudad    = trim($ciudades[$idx] ?? "");
-        $address   = trim($addresses[$idx] ?? "");
-        $note      = trim($notes[$idx] ?? "");
+        $contact       = trim($contactNames[$idx] ?? "");
+        $oficina       = trim($oficinas[$idx] ?? "");
+        $zona          = trim($zonas[$idx] ?? "");
+        $contacto      = trim($contactosInternos[$idx] ?? "");
+        $ruc           = trim($rucs[$idx] ?? "");
+        $mesesFact     = trim($mesesFacts[$idx] ?? "");
+        $detalleMeses  = trim($detalleMesesArr[$idx] ?? "");
+        $estatusExcel  = trim($estatusExcelArr[$idx] ?? "");
+        $alerta        = trim($alertas[$idx] ?? "");
+        $ciudad        = trim($ciudades[$idx] ?? "");
+        $address       = trim($addresses[$idx] ?? "");
+        $note          = trim($notes[$idx] ?? "");
         $classId = (int) ($classificationIds[$idx] ?? 0);
         $classId = $classId > 0 ? $classId : null;
         $brandId = (int) ($brandIds[$idx] ?? 0);
         $brandId = $brandId > 0 ? $brandId : null;
 
-        mysqli_stmt_bind_param($stmt, "isssssssssii", $linkId, $name, $contact, $oficina, $zona, $contacto, $ruc, $ciudad, $address, $note, $brandId, $classId);
+        mysqli_stmt_bind_param($stmt, "isssssssssssssii", $linkId, $name, $contact, $oficina, $zona, $contacto, $ruc, $mesesFact, $detalleMeses, $estatusExcel, $alerta, $ciudad, $address, $note, $brandId, $classId);
         if (mysqli_stmt_execute($stmt)) {
             $staged++;
         }
@@ -432,6 +448,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
                                                         <th style="min-width:100px">Zona</th>
                                                         <th style="min-width:150px">Contacto interno</th>
                                                         <th style="min-width:100px">RUC/CI</th>
+                                                        <th style="min-width:90px">Meses fact.</th>
+                                                        <th style="min-width:180px">Detalle meses</th>
+                                                        <th style="min-width:110px">Estatus</th>
+                                                        <th style="min-width:150px">Alerta</th>
                                                         <th style="min-width:130px">Ciudad</th>
                                                         <th style="min-width:150px">Marca</th>
                                                         <th style="min-width:130px">Clasificacion</th>
@@ -463,6 +483,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
                                                             </td>
                                                             <td>
                                                                 <input type="text" name="ruc_ci[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ruc_ci"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <?php echo htmlspecialchars($r["meses_fact"]); ?>
+                                                                <input type="hidden" name="meses_fact[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["meses_fact"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <?php echo htmlspecialchars($r["detalle_meses"]); ?>
+                                                                <input type="hidden" name="detalle_meses[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["detalle_meses"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <?php echo htmlspecialchars($r["estatus_excel"]); ?>
+                                                                <input type="hidden" name="estatus_excel[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["estatus_excel"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <?php echo htmlspecialchars($r["alerta"]); ?>
+                                                                <input type="hidden" name="alerta[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["alerta"]); ?>">
                                                             </td>
                                                             <td>
                                                                 <input type="text" name="ciudad[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ciudad"]); ?>">

@@ -154,7 +154,7 @@ if ($verifiedEmail) {
 <div class="auth-page">
     <div class="container-fluid p-0">
         <div class="row g-0 justify-content-center">
-            <div class="col-xxl-7 col-lg-9">
+            <div class="<?php echo ($verifiedEmail && $batch['active']) ? 'col-12' : 'col-xxl-7 col-lg-9'; ?>">
                 <div class="auth-full-page-content d-flex p-sm-5 p-4">
                     <div class="w-100">
 
@@ -246,6 +246,10 @@ if ($verifiedEmail) {
                                                 <th style="min-width:90px">Zona</th>
                                                 <th style="min-width:130px">Contacto interno</th>
                                                 <th style="min-width:90px">RUC/CI</th>
+                                                <th style="min-width:90px">Meses fact.</th>
+                                                <th style="min-width:180px">Detalle meses</th>
+                                                <th style="min-width:110px">Estatus</th>
+                                                <th style="min-width:150px">Alerta</th>
                                                 <th style="min-width:120px">Ciudad</th>
                                                 <th style="min-width:140px">Direccion</th>
                                                 <th style="min-width:160px">Notas</th>
@@ -268,6 +272,10 @@ if ($verifiedEmail) {
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['zona'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['contacto_interno'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['ruc_ci'] ?? ''); ?>" readonly></td>
+                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['meses_fact'] ?? ''); ?>" readonly></td>
+                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['detalle_meses'] ?? ''); ?>" readonly></td>
+                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['estatus_excel'] ?? ''); ?>" readonly></td>
+                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['alerta'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="ciudad" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['ciudad'] ?? ''); ?>"></td>
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="address" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['address'] ?? ''); ?>"></td>
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="notes" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['notes'] ?? ''); ?>"></td>

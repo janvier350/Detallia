@@ -212,26 +212,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
 
                 $name = $persona !== "" ? $persona : $razonSocial;
 
-                $noteParts = [];
-                if ($razonSocial !== "") {
-                    $noteParts[] = "Grupo/Empresa: " . $razonSocial;
-                }
-                $oficina = trim($get("OFICINA"));
-                if ($oficina !== "") {
-                    $noteParts[] = "Oficina: " . $oficina;
-                }
-                $zona = trim($get("ZONA"));
-                if ($zona !== "") {
-                    $noteParts[] = "Zona: " . $zona;
-                }
+                $oficina         = trim($get("OFICINA"));
+                $zona            = trim($get("ZONA"));
                 $contactoInterno = trim($get("CONTACTO"));
-                if ($contactoInterno !== "") {
-                    $noteParts[] = "Contacto interno Buadnet: " . $contactoInterno;
-                }
-                $ruc = trim($get("RUC/CI"));
-                if ($ruc !== "") {
-                    $noteParts[] = "RUC/CI: " . $ruc;
-                }
+                $ruc             = trim($get("RUC/CI"));
 
                 $categoria = mb_strtoupper(trim($get("CATEGORÍA")));
                 $classification_guess = null;
@@ -253,9 +237,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
                 $parsedRows[] = [
                     "name" => $name,
                     "contact_name" => $razonSocial,
+                    "oficina" => $oficina,
+                    "zona" => $zona,
+                    "contacto_interno" => $contactoInterno,
+                    "ruc_ci" => $ruc,
                     "ciudad" => trim($get("CIUDAD")),
                     "address" => trim($get("DIRECCIÓN")),
-                    "notes" => implode(" | ", $noteParts),
+                    "notes" => "",
                     "classification_id" => $classification_guess,
                     "brand_id" => $brand_guess,
                     "include" => !$duplicate_in_batch && !$duplicate_in_db,
@@ -281,6 +269,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage") {
     $names               = $_POST["name"] ?? [];
     $contactNames        = $_POST["contact_name"] ?? [];
+    $oficinas            = $_POST["oficina"] ?? [];
+    $zonas               = $_POST["zona"] ?? [];
+    $contactosInternos   = $_POST["contacto_interno"] ?? [];
+    $rucs                = $_POST["ruc_ci"] ?? [];
     $ciudades            = $_POST["ciudad"] ?? [];
     $addresses           = $_POST["address"] ?? [];
     $notes               = $_POST["notes"] ?? [];
@@ -299,8 +291,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
     mysqli_stmt_execute($linkStmt);
     $linkId = mysqli_insert_id($link);
 
-    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, ciudad, address, notes, brand_id, classification_id)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, ciudad, address, notes, brand_id, classification_id)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($names as $idx => $name) {
         if (empty($includes[$idx])) {
@@ -311,16 +303,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
             $skippedEmpty++;
             continue;
         }
-        $contact = trim($contactNames[$idx] ?? "");
-        $ciudad  = trim($ciudades[$idx] ?? "");
-        $address = trim($addresses[$idx] ?? "");
-        $note    = trim($notes[$idx] ?? "");
+        $contact   = trim($contactNames[$idx] ?? "");
+        $oficina   = trim($oficinas[$idx] ?? "");
+        $zona      = trim($zonas[$idx] ?? "");
+        $contacto  = trim($contactosInternos[$idx] ?? "");
+        $ruc       = trim($rucs[$idx] ?? "");
+        $ciudad    = trim($ciudades[$idx] ?? "");
+        $address   = trim($addresses[$idx] ?? "");
+        $note      = trim($notes[$idx] ?? "");
         $classId = (int) ($classificationIds[$idx] ?? 0);
         $classId = $classId > 0 ? $classId : null;
         $brandId = (int) ($brandIds[$idx] ?? 0);
         $brandId = $brandId > 0 ? $brandId : null;
 
-        mysqli_stmt_bind_param($stmt, "isssssii", $linkId, $name, $contact, $ciudad, $address, $note, $brandId, $classId);
+        mysqli_stmt_bind_param($stmt, "isssssssssii", $linkId, $name, $contact, $oficina, $zona, $contacto, $ruc, $ciudad, $address, $note, $brandId, $classId);
         if (mysqli_stmt_execute($stmt)) {
             $staged++;
         }
@@ -432,6 +428,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
                                                         </th>
                                                         <th style="min-width:180px">Nombre (cliente)</th>
                                                         <th style="min-width:150px">Empresa/Grupo (contacto)</th>
+                                                        <th style="min-width:120px">Oficina</th>
+                                                        <th style="min-width:100px">Zona</th>
+                                                        <th style="min-width:150px">Contacto interno</th>
+                                                        <th style="min-width:100px">RUC/CI</th>
                                                         <th style="min-width:130px">Ciudad</th>
                                                         <th style="min-width:150px">Marca</th>
                                                         <th style="min-width:130px">Clasificacion</th>
@@ -451,6 +451,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
                                                             </td>
                                                             <td>
                                                                 <input type="text" name="contact_name[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["contact_name"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <input type="text" name="oficina[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["oficina"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <input type="text" name="zona[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["zona"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <input type="text" name="contacto_interno[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["contacto_interno"]); ?>">
+                                                            </td>
+                                                            <td>
+                                                                <input type="text" name="ruc_ci[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ruc_ci"]); ?>">
                                                             </td>
                                                             <td>
                                                                 <input type="text" name="ciudad[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ciudad"]); ?>">

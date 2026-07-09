@@ -85,7 +85,7 @@ if (isset($_SESSION["flash_success"])) {
     unset($_SESSION["flash_success"]);
 }
 
-$links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.created_at,
+$links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.created_at, vl.finished_at, vl.finished_by,
                                       COALESCE(u.full_name, u.username) AS created_by_name,
                                       SUM(CASE WHEN pc.status = 'pendiente' THEN 1 ELSE 0 END) AS total_pendiente,
                                       SUM(CASE WHEN pc.status = 'confirmado' THEN 1 ELSE 0 END) AS total_confirmado,
@@ -190,6 +190,11 @@ while ($row = mysqli_fetch_assoc($links)) {
                                                         <span class="badge bg-<?php echo $l["active"] ? 'success' : 'secondary'; ?>">
                                                             <?php echo $l["active"] ? "Activo" : "Inactivo"; ?>
                                                         </span>
+                                                        <?php if ($l["finished_at"]): ?>
+                                                            <span class="badge bg-info-subtle text-info" title="Terminado por <?php echo htmlspecialchars($l['finished_by'] ?? ''); ?> el <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($l['finished_at']))); ?>">
+                                                                Terminado por encargado
+                                                            </span>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <td class="text-end">
                                                         <button type="button" class="btn btn-sm btn-soft-secondary" title="Copiar enlace"

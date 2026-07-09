@@ -14,7 +14,7 @@ if ($link_id <= 0) {
 $success_msg = "";
 $importSummary = null;
 
-$stmt = mysqli_prepare($link, "SELECT id, label, token, active FROM validation_links WHERE id = ?");
+$stmt = mysqli_prepare($link, "SELECT id, label, token, active, finished_at, finished_by FROM validation_links WHERE id = ?");
 mysqli_stmt_bind_param($stmt, "i", $link_id);
 mysqli_stmt_execute($stmt);
 $batch = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -105,6 +105,13 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                     </div>
                 </div>
 
+                <?php if ($batch["finished_at"]): ?>
+                    <div class="alert alert-secondary">
+                        El encargado (<?php echo htmlspecialchars($batch["finished_by"] ?? "—"); ?>) marco este lote como terminado el
+                        <?php echo htmlspecialchars(date("d/m/Y H:i", strtotime($batch["finished_at"]))); ?>.
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($importSummary): ?>
                     <div class="alert alert-success">
                         <strong><?php echo $importSummary["imported"]; ?></strong> contactos confirmados fueron importados a Clientes.
@@ -136,6 +143,11 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                         <thead class="table-light">
                                             <tr>
                                                 <th>Nombre</th>
+                                                <th>Empresa/Grupo</th>
+                                                <th>Oficina</th>
+                                                <th>Zona</th>
+                                                <th>Contacto interno</th>
+                                                <th>RUC/CI</th>
                                                 <th>Ciudad</th>
                                                 <th>Marca</th>
                                                 <th>Clasificacion</th>
@@ -148,6 +160,11 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                             <?php while ($p = mysqli_fetch_assoc($pending)): ?>
                                                 <tr>
                                                     <td><?php echo htmlspecialchars($p["name"]); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["contact_name"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["oficina"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["zona"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["contacto_interno"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($p["ruc_ci"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["ciudad"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["brand_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars($p["classification_name"] ?? "—"); ?></td>

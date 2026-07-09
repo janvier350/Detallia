@@ -96,6 +96,10 @@ $links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.cr
                                LEFT JOIN pending_clients pc ON pc.link_id = vl.id
                                GROUP BY vl.id
                                ORDER BY vl.id DESC");
+$linksList = [];
+while ($row = mysqli_fetch_assoc($links)) {
+    $linksList[] = $row;
+}
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -172,7 +176,7 @@ $links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.cr
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php while ($l = mysqli_fetch_assoc($links)): ?>
+                                            <?php foreach ($linksList as $l): ?>
                                                 <?php $validateUrl = $baseUrl . "/validate.php?token=" . $l["token"]; ?>
                                                 <tr>
                                                     <td><?php echo (int) $l["id"]; ?></td>
@@ -209,36 +213,7 @@ $links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.cr
                                                         </form>
                                                     </td>
                                                 </tr>
-
-                                                <div class="modal fade" id="emailModal<?php echo (int) $l['id']; ?>" tabindex="-1" aria-hidden="true">
-                                                    <div class="modal-dialog">
-                                                        <form method="post" class="modal-content">
-                                                            <div class="modal-header">
-                                                                <h5 class="modal-title">Enviar enlace por correo</h5>
-                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                            </div>
-                                                            <div class="modal-body">
-                                                                <input type="hidden" name="action" value="send_email">
-                                                                <input type="hidden" name="id" value="<?php echo (int) $l['id']; ?>">
-                                                                <p class="text-muted">Lote: <strong><?php echo htmlspecialchars($l["label"]); ?></strong></p>
-                                                                <div class="mb-3">
-                                                                    <label class="form-label">Correos de los encargados</label>
-                                                                    <input type="text" name="emails" class="form-control" placeholder="correo1@buadnet.com, correo2@buadnet.com" required>
-                                                                    <div class="form-text">Separa varios correos con coma.</div>
-                                                                </div>
-                                                                <div class="mb-3">
-                                                                    <label class="form-label">Mensaje adicional (opcional)</label>
-                                                                    <textarea name="message" class="form-control" rows="2"></textarea>
-                                                                </div>
-                                                            </div>
-                                                            <div class="modal-footer">
-                                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                                                                <button type="submit" class="btn btn-primary">Enviar</button>
-                                                            </div>
-                                                        </form>
-                                                    </div>
-                                                </div>
-                                            <?php endwhile; ?>
+                                            <?php endforeach; ?>
                                         </tbody>
                                     </table>
                                 </div>
@@ -247,6 +222,37 @@ $links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.cr
                         </div>
                     </div>
                 </div>
+
+                <?php foreach ($linksList as $l): ?>
+                    <div class="modal fade" id="emailModal<?php echo (int) $l['id']; ?>" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <form method="post" class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Enviar enlace por correo</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <input type="hidden" name="action" value="send_email">
+                                    <input type="hidden" name="id" value="<?php echo (int) $l['id']; ?>">
+                                    <p class="text-muted">Lote: <strong><?php echo htmlspecialchars($l["label"]); ?></strong></p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Correos de los encargados</label>
+                                        <input type="text" name="emails" class="form-control" placeholder="correo1@buadnet.com, correo2@buadnet.com" required>
+                                        <div class="form-text">Separa varios correos con coma.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Mensaje adicional (opcional)</label>
+                                        <textarea name="message" class="form-control" rows="2"></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary">Enviar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
 
             </div>
         </div>

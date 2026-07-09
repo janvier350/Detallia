@@ -26,10 +26,18 @@ if (isset($_POST['submit'])) {
     if ($emailcount) {
         $userdata = mysqli_fetch_array($query);
         $username = $userdata['username'];
-        $token = $userdata['token'];
+        $userId = (int) $userdata['id'];
+        $token = bin2hex(random_bytes(32));
 
-        $subject = "Password Reset";
-        $body = "Hi, $username. Click here to reset your password " . $actual_link . "/auth-reset-password.php?token=$token ";
+        $upd = mysqli_prepare($link, "UPDATE users SET token = ? WHERE id = ?");
+        mysqli_stmt_bind_param($upd, "si", $token, $userId);
+        mysqli_stmt_execute($upd);
+
+        $resetUrl = $actual_link . "/auth-reset-password.php?token=" . $token;
+        $subject = "Restablecer contrasena - Detallia";
+        $body = "<p>Hola, $username.</p><p>Haz clic en el siguiente enlace para restablecer tu contrasena:</p>" .
+                "<p><a href='" . $resetUrl . "'>" . $resetUrl . "</a></p>" .
+                "<p>Si no solicitaste este cambio, ignora este correo.</p>";
         $sender_email = "From: $gmailid";
 
         try {
@@ -55,13 +63,13 @@ if (isset($_POST['submit'])) {
             $mail->Body = $body;
 
             $mail->send();
-            $msg = "We have emailed your password reset link!";
+            $msg = "Te enviamos un enlace para restablecer tu contrasena.";
             // header("location:auth-login.php");
         } catch (Exception $e) {
-            $useremail_err =  "Error in sending email. Mailer Error: {$mail->ErrorInfo}";
+            $useremail_err =  "Error al enviar el correo: {$mail->ErrorInfo}";
         }
     } else {
-        $useremail_err = "No Email Found";
+        $useremail_err = "No se encontro una cuenta con ese correo.";
     }
 }
 ?>

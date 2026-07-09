@@ -257,6 +257,8 @@ $pendingRequestsCount = count($pendingRequests);
                         <div class="text-muted font-size-12"><?php echo htmlspecialchars($_SESSION["role_name"] ?? ""); ?></div>
                     </div>
                     <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="account-change-password.php"><i class="mdi mdi-lock-reset font-size-16 align-middle me-1"></i> Cambiar contrasena</a>
+                    <div class="dropdown-divider"></div>
                     <a class="dropdown-item" href="logout.php"><i class="mdi mdi-logout font-size-16 align-middle me-1"></i> <?php echo $language["Logout"]; ?></a>
                 </div>
             </div>

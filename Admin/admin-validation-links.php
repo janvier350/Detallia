@@ -190,11 +190,6 @@ while ($row = mysqli_fetch_assoc($links)) {
                                                         <span class="badge bg-<?php echo $l["active"] ? 'success' : 'secondary'; ?>">
                                                             <?php echo $l["active"] ? "Activo" : "Inactivo"; ?>
                                                         </span>
-                                                        <?php if ($l["finished_at"]): ?>
-                                                            <span class="badge bg-info-subtle text-info" title="Terminado por <?php echo htmlspecialchars($l['finished_by'] ?? ''); ?> el <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($l['finished_at']))); ?>">
-                                                                Terminado por encargado
-                                                            </span>
-                                                        <?php endif; ?>
                                                     </td>
                                                     <td class="text-end">
                                                         <button type="button" class="btn btn-sm btn-soft-secondary" title="Copiar enlace"

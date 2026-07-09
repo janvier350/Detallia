@@ -101,13 +101,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "verif
 // ---------------------------------------------------------------
 // Confirmar / rechazar un contacto (requiere email verificado)
 // ---------------------------------------------------------------
-if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "finish" && $verifiedEmail) {
-    $upd = mysqli_prepare($link, "UPDATE validation_links SET finished_at = NOW(), finished_by = ? WHERE id = ?");
-    mysqli_stmt_bind_param($upd, "si", $verifiedEmail, $batch["id"]);
-    mysqli_stmt_execute($upd);
-    $batch["finished_at"] = date("Y-m-d H:i:s");
-    $batch["finished_by"] = $verifiedEmail;
-    $info_msg = "Gracias, se registro que terminaste la validacion de este lote.";
+// ---------------------------------------------------------------
+// Reversar un contacto ya confirmado/rechazado (vuelve a pendiente)
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "revert" && $verifiedEmail && $batch["active"]) {
+    $pendingId = (int) ($_POST["pending_id"] ?? 0);
+    if ($pendingId > 0) {
+        $upd = mysqli_prepare($link, "UPDATE pending_clients
+                                       SET status='pendiente', validated_by_email=NULL, validated_at=NULL
+                                       WHERE id=? AND link_id=? AND imported=0");
+        mysqli_stmt_bind_param($upd, "ii", $pendingId, $batch["id"]);
+        mysqli_stmt_execute($upd);
+        $info_msg = "Contacto devuelto a la lista de pendientes.";
+    }
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["confirm", "reject"], true) && $verifiedEmail && $batch["active"]) {
@@ -154,7 +160,7 @@ if ($verifiedEmail) {
 <div class="auth-page">
     <div class="container-fluid p-0">
         <div class="row g-0 justify-content-center">
-            <div class="<?php echo ($verifiedEmail && $batch['active']) ? 'col-12' : 'col-xxl-7 col-lg-9'; ?>">
+            <div class="<?php echo $verifiedEmail ? 'col-12' : 'col-xxl-7 col-lg-9'; ?>">
                 <div class="auth-full-page-content d-flex p-sm-5 p-4">
                     <div class="w-100">
 
@@ -203,25 +209,9 @@ if ($verifiedEmail) {
                                     <h5 class="mb-0">Lote: <?php echo htmlspecialchars($batch["label"]); ?></h5>
                                     <p class="text-muted mb-0">Validando como: <?php echo htmlspecialchars($verifiedEmail); ?></p>
                                 </div>
-                                <?php if (!$batch["finished_at"]): ?>
-                                    <form method="post" onsubmit="return confirm('¿Terminar la validacion de este lote? Los contactos que no revisaste quedaran pendientes.');">
-                                        <input type="hidden" name="action" value="finish">
-                                        <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
-                                        <button type="submit" class="btn btn-outline-secondary btn-sm">
-                                            <i class="mdi mdi-flag-checkered me-1"></i> Terminar validacion
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
                             </div>
 
                             <?php if ($info_msg): ?><div class="alert alert-success"><?php echo htmlspecialchars($info_msg); ?></div><?php endif; ?>
-
-                            <?php if ($batch["finished_at"]): ?>
-                                <div class="alert alert-info">
-                                    Marcaste este lote como terminado el <?php echo htmlspecialchars(date("d/m/Y H:i", strtotime($batch["finished_at"]))); ?>.
-                                    Gracias por tu ayuda.
-                                </div>
-                            <?php endif; ?>
 
                             <?php
                                 mysqli_data_seek($pending, 0);
@@ -235,7 +225,7 @@ if ($verifiedEmail) {
                                 }
                             ?>
 
-                            <?php if ($anyPending && !$batch["finished_at"]): ?>
+                            <?php if ($anyPending): ?>
                                 <div class="table-responsive">
                                     <table class="table table-bordered table-sm align-middle">
                                         <thead class="table-light">
@@ -312,7 +302,7 @@ if ($verifiedEmail) {
                                 <?php foreach ($pendingRows as $p): ?>
                                     <form id="rowform<?php echo (int) $p['id']; ?>" method="post"></form>
                                 <?php endforeach; ?>
-                            <?php elseif (!$batch["finished_at"]): ?>
+                            <?php else: ?>
                                 <div class="alert alert-info">Ya no quedan contactos pendientes en este lote. Gracias por tu ayuda.</div>
                             <?php endif; ?>
 
@@ -321,7 +311,7 @@ if ($verifiedEmail) {
                             <div class="table-responsive">
                                 <table class="table table-sm">
                                     <thead>
-                                        <tr><th>Nombre</th><th>Estado</th><th>Validado por</th></tr>
+                                        <tr><th>Nombre</th><th>Estado</th><th>Validado por</th><th>Acciones</th></tr>
                                     </thead>
                                     <tbody>
                                         <?php mysqli_data_seek($pending, 0); while ($p = mysqli_fetch_assoc($pending)): ?>
@@ -334,6 +324,20 @@ if ($verifiedEmail) {
                                                     </span>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($p["validated_by_email"] ?? ""); ?></td>
+                                                <td>
+                                                    <?php if (!$p["imported"]): ?>
+                                                        <form method="post" onsubmit="return confirm('¿Devolver este contacto a la lista de pendientes?');">
+                                                            <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                                                            <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
+                                                            <input type="hidden" name="action" value="revert">
+                                                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                                                <i class="mdi mdi-undo me-1"></i> Reversar
+                                                            </button>
+                                                        </form>
+                                                    <?php else: ?>
+                                                        <span class="text-muted small">Ya importado</span>
+                                                    <?php endif; ?>
+                                                </td>
                                             </tr>
                                         <?php endwhile; ?>
                                     </tbody>

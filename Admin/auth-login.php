@@ -128,6 +128,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         <?php if ($username_err): ?><span class="text-danger"><?php echo $username_err; ?></span><?php endif; ?>
                                     </div>
                                     <div class="mb-3 <?php echo (!empty($password_err)) ? 'has-error' : ''; ?>">
+                                        <div class="float-end">
+                                            <a href="auth-recoverpw.php" class="text-muted small">¿Olvidaste tu contrasena?</a>
+                                        </div>
                                         <label class="form-label" for="password">Contrasena</label>
                                         <div class="input-group auth-pass-inputgroup">
                                             <input type="password" class="form-control" placeholder="Ingresa tu contrasena" name="password" aria-label="Password" aria-describedby="password-addon">

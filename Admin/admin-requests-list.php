@@ -14,8 +14,9 @@ if (isset($_SESSION["flash_success"])) {
     unset($_SESSION["flash_success"]);
 }
 
-// Las solicitudes son registros de auditoria: una vez guardadas no se
-// pueden editar ni eliminar. Solo se puede marcar como despachada.
+// Las solicitudes ya despachadas son registros de auditoria: no se pueden
+// editar ni eliminar. Mientras esten pendientes, si se pueden eliminar
+// (por el propio solicitante o por quien las despacha).
 if ($can_dispatch && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "dispatch") {
     $request_id = (int) ($_POST["id"] ?? 0);
     if ($request_id > 0) {
@@ -23,6 +24,22 @@ if ($can_dispatch && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["actio
         mysqli_stmt_bind_param($stmt, "i", $request_id);
         mysqli_stmt_execute($stmt);
         $_SESSION["flash_success"] = "Solicitud marcada como despachada.";
+        header("location: admin-requests-list.php");
+        exit;
+    }
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
+    $request_id = (int) ($_POST["id"] ?? 0);
+    if ($request_id > 0) {
+        $sql = "DELETE FROM requests WHERE id = ? AND status = 'pendiente'";
+        if ($is_solicitante) {
+            $sql .= " AND requested_by = " . (int) $_SESSION["id"];
+        }
+        $stmt = mysqli_prepare($link, $sql);
+        mysqli_stmt_bind_param($stmt, "i", $request_id);
+        mysqli_stmt_execute($stmt);
+        $_SESSION["flash_success"] = "Solicitud eliminada correctamente.";
         header("location: admin-requests-list.php");
         exit;
     }
@@ -148,6 +165,15 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                                 <input type="hidden" name="id" value="<?php echo (int) $r["id"]; ?>">
                                                                 <button type="submit" class="btn btn-sm btn-soft-success">
                                                                     <i class="mdi mdi-check-bold"></i>
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                        <?php if ($r["status"] === "pendiente"): ?>
+                                                            <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta solicitud pendiente?');">
+                                                                <input type="hidden" name="action" value="delete">
+                                                                <input type="hidden" name="id" value="<?php echo (int) $r["id"]; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-danger">
+                                                                    <i class="mdi mdi-delete"></i>
                                                                 </button>
                                                             </form>
                                                         <?php endif; ?>

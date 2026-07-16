@@ -62,8 +62,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
     $status    = ($_POST["status"] ?? "activo") === "inactivo" ? "inactivo" : "activo";
     $password  = $_POST["password"] ?? "";
 
+    // Validar que el usuario y el correo no esten repetidos (excluyendo al propio en edicion)
+    $dupUser = false;
+    $dupEmail = false;
+    if ($useremail !== "" && $username !== "" && $role_id > 0) {
+        $chk = mysqli_prepare($link, "SELECT username, useremail FROM users WHERE (username = ? OR useremail = ?) AND id <> ?");
+        mysqli_stmt_bind_param($chk, "ssi", $username, $useremail, $user_id);
+        mysqli_stmt_execute($chk);
+        $chkRes = mysqli_stmt_get_result($chk);
+        while ($row = mysqli_fetch_assoc($chkRes)) {
+            if (strcasecmp($row["username"], $username) === 0) {
+                $dupUser = true;
+            }
+            if (strcasecmp($row["useremail"], $useremail) === 0) {
+                $dupEmail = true;
+            }
+        }
+    }
+
     if ($useremail === "" || $username === "" || $role_id <= 0) {
         $error_msg = "Correo, usuario y rol son obligatorios.";
+    } elseif ($dupUser && $dupEmail) {
+        $error_msg = "Ya existe un usuario con ese nombre de usuario y ese correo.";
+    } elseif ($dupUser) {
+        $error_msg = "Ya existe un usuario con ese nombre de usuario. Elige otro.";
+    } elseif ($dupEmail) {
+        $error_msg = "Ya existe un usuario con ese correo. Elige otro.";
     } else {
         if ($user_id > 0) {
             // Editar usuario existente

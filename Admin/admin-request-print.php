@@ -35,10 +35,15 @@ if ($is_solicitante && (int) $request["requested_by"] !== (int) $_SESSION["id"])
 
 $stmt = mysqli_prepare($link, "SELECT ri.item_type, ri.quantity,
                                        a.name AS article_name, a.unit AS article_unit,
-                                       k.name AS kit_name
+                                       k.name AS kit_name,
+                                       COALESCE(ab.name, kb.name) AS brand_name,
+                                       ac.name AS category_name
                                 FROM request_items ri
                                 LEFT JOIN articles a ON a.id = ri.article_id
                                 LEFT JOIN kits k ON k.id = ri.kit_id
+                                LEFT JOIN brands ab ON ab.id = a.brand_id
+                                LEFT JOIN article_categories ac ON ac.id = a.category_id
+                                LEFT JOIN brands kb ON kb.id = k.brand_id
                                 WHERE ri.request_id = ?");
 mysqli_stmt_bind_param($stmt, "i", $request_id);
 mysqli_stmt_execute($stmt);
@@ -91,6 +96,8 @@ $items = mysqli_stmt_get_result($stmt);
                 <tr>
                     <th>Tipo</th>
                     <th>Descripcion</th>
+                    <th>Marca</th>
+                    <th>Categoria</th>
                     <th>Cantidad</th>
                 </tr>
             </thead>
@@ -99,6 +106,8 @@ $items = mysqli_stmt_get_result($stmt);
                     <tr>
                         <td><?php echo $it["item_type"] === "kit" ? "Kit" : "Articulo"; ?></td>
                         <td><?php echo htmlspecialchars($it["item_type"] === "kit" ? $it["kit_name"] : $it["article_name"]); ?></td>
+                        <td><?php echo htmlspecialchars($it["brand_name"] ?? "—"); ?></td>
+                        <td><?php echo htmlspecialchars($it["item_type"] === "kit" ? "—" : ($it["category_name"] ?? "—")); ?></td>
                         <td><?php echo format_qty($it["quantity"]) . ($it["item_type"] === "articulo" ? " " . htmlspecialchars($it["article_unit"]) : ""); ?></td>
                     </tr>
                 <?php endwhile; ?>

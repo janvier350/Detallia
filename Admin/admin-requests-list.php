@@ -57,10 +57,15 @@ $requests = mysqli_query($link, $sql);
 $itemsByRequest = [];
 $res = mysqli_query($link, "SELECT ri.request_id, ri.item_type, ri.quantity,
                                     a.name AS article_name, a.unit AS article_unit,
-                                    k.name AS kit_name
+                                    k.name AS kit_name,
+                                    COALESCE(ab.name, kb.name) AS brand_name,
+                                    ac.name AS category_name
                              FROM request_items ri
                              LEFT JOIN articles a ON a.id = ri.article_id
                              LEFT JOIN kits k ON k.id = ri.kit_id
+                             LEFT JOIN brands ab ON ab.id = a.brand_id
+                             LEFT JOIN article_categories ac ON ac.id = a.category_id
+                             LEFT JOIN brands kb ON kb.id = k.brand_id
                              ORDER BY ri.request_id");
 while ($row = mysqli_fetch_assoc($res)) {
     $itemsByRequest[(int) $row["request_id"]][] = $row;
@@ -127,6 +132,8 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                 <th>Fecha</th>
                                                 <?php if (!$is_solicitante): ?><th>Solicitado por</th><?php endif; ?>
                                                 <th>Articulos / Kits</th>
+                                                <th>Marca</th>
+                                                <th>Categoria</th>
                                                 <th>Notas</th>
                                                 <th>Estado</th>
                                                 <th class="text-end">Acciones</th>
@@ -147,6 +154,16 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                                     <span class="badge bg-info-subtle text-info me-1">Articulo</span> <?php echo htmlspecialchars($it["article_name"]); ?> (<?php echo format_qty($it["quantity"]) . " " . htmlspecialchars($it["article_unit"]); ?>)
                                                                 <?php endif; ?>
                                                             </div>
+                                                        <?php endforeach; ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php foreach (($itemsByRequest[(int) $r["id"]] ?? []) as $it): ?>
+                                                            <div><?php echo htmlspecialchars($it["brand_name"] ?? "—"); ?></div>
+                                                        <?php endforeach; ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php foreach (($itemsByRequest[(int) $r["id"]] ?? []) as $it): ?>
+                                                            <div><?php echo htmlspecialchars($it["item_type"] === "kit" ? "—" : ($it["category_name"] ?? "—")); ?></div>
                                                         <?php endforeach; ?>
                                                     </td>
                                                     <td><?php echo nl2br(htmlspecialchars($r["notes"])); ?></td>

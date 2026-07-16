@@ -77,7 +77,7 @@ if (isset($_POST['submit'])) {
 
 <head>
 
-    <title>Recover Password | Minia - Admin & Dashboard Template</title>
+    <title>Recuperar contrasena | Detallia</title>
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
 
@@ -92,14 +92,14 @@ if (isset($_POST['submit'])) {
                     <div class="w-100">
                         <div class="d-flex flex-column h-100">
                             <div class="mb-4 mb-md-5 text-center">
-                                <a href="index.php" class="d-block auth-logo">
-                                    <img src="assets/images/logo-sm.svg" alt="" height="28"> <span class="logo-txt">Minia</span>
+                                <a href="auth-login.php" class="d-block auth-logo">
+                                    <img src="assets/images/logo-detallia.svg" alt="Detallia" height="34">
                                 </a>
                             </div>
                             <div class="auth-content my-auto">
                                 <div class="text-center">
-                                    <h5 class="mb-0">Reset Password</h5>
-                                    <p class="text-muted mt-2">Reset Password with Minia.</p>
+                                    <h5 class="mb-0">Recuperar contrasena</h5>
+                                    <p class="text-muted mt-2">Ingresa tu correo y te enviaremos un enlace para restablecerla.</p>
                                 </div>
                                 <?php if ($msg) { ?>
                                     <div class="alert alert-success text-center my-4" role="alert">
@@ -109,17 +109,17 @@ if (isset($_POST['submit'])) {
 
                                 <form class="mt-4" action="<?php echo htmlentities($_SERVER["PHP_SELF"]); ?>" method="post">
                                     <div class="mb-3 <?php echo (!empty($useremail_err)) ? 'has-error' : ''; ?>">
-                                        <label class="form-label">Email</label>
-                                        <input type="text" class="form-control" id="email" placeholder="Enter email">
+                                        <label class="form-label">Correo</label>
+                                        <input type="email" class="form-control" id="email" name="useremail" placeholder="Ingresa tu correo" required>
                                         <span class="text-danger"><?php echo $useremail_err; ?></span>
                                     </div>
                                     <div class="mb-3 mt-4">
-                                        <button class="btn btn-primary w-100 waves-effect waves-light" type='submit' name='submit' value='Submit'>Reset</button>
+                                        <button class="btn btn-primary w-100 waves-effect waves-light" type='submit' name='submit' value='Submit'>Enviar enlace</button>
                                     </div>
                                 </form>
 
                                 <div class="mt-5 text-center">
-                                    <p class="text-muted mb-0">Remember It ? <a href="auth-login.php" class="text-primary fw-semibold"> Sign In </a> </p>
+                                    <p class="text-muted mb-0">¿Ya la recordaste? <a href="auth-login.php" class="text-primary fw-semibold"> Iniciar sesion </a> </p>
                                 </div>
                             </div>
                             <div class="mt-4 mt-md-5 text-center">

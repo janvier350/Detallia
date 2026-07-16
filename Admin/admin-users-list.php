@@ -2,10 +2,53 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/mailer.php';
 require_role([1]); // Solo Administrador
 
 $success_msg = "";
 $error_msg = "";
+
+// Descripcion de lo que puede hacer cada rol (para el correo de bienvenida)
+function role_welcome_description($roleId)
+{
+    switch ((int) $roleId) {
+        case 1:
+            return "Como <strong>Administrador</strong> tienes acceso total al sistema: gestionas usuarios y permisos, proveedores, articulos, marcas, clientes, kits, compras, entregas, devoluciones, inventario y solicitudes. Tambien administras la importacion y validacion de contactos.";
+        case 2:
+            return "Como <strong>Jefe</strong> supervisas la operacion: registras y consultas compras, entregas, devoluciones e inventario, gestionas clientes, articulos y kits, y despachas las solicitudes del equipo.";
+        case 3:
+            return "Como <strong>Asistente</strong> apoyas la operacion diaria: registras compras, entregas y devoluciones, consultas el inventario y gestionas la informacion de articulos, kits y clientes segun tus permisos.";
+        case 4:
+            return "Como <strong>Solicitante</strong> puedes crear solicitudes de kits o articulos y dar seguimiento a las que tu mismo generaste, ademas de imprimir el documento de cada solicitud.";
+        case 5:
+            return "Como <strong>Consultor de Inventario</strong> puedes consultar el inventario, articulos, kits y movimientos de stock, con permisos especificos de solo lectura en la mayoria de los modulos.";
+        default:
+            return "Tu rol define a que modulos del sistema puedes acceder. Si tienes dudas sobre tus permisos, contacta al administrador.";
+    }
+}
+
+function send_welcome_email($toEmail, $fullName, $username, $plainPassword, $roleName, $roleId, $loginUrl)
+{
+    $greetingName = $fullName !== "" ? $fullName : $username;
+    $body = "<div style='font-family:Arial,sans-serif;color:#333;'>" .
+            "<h2 style='color:#4b38b3;'>Bienvenido a Detallia</h2>" .
+            "<p>Hola <strong>" . htmlspecialchars($greetingName) . "</strong>,</p>" .
+            "<p>Se creo tu cuenta en <strong>Detallia</strong>, la plataforma de Buadnet para gestionar los kits de merchandising: control de inventario, registro de compras, armado de kits, entregas a clientes y solicitudes internas, todo en un solo lugar.</p>" .
+            "<h4 style='margin-bottom:4px;'>Tus datos de acceso</h4>" .
+            "<ul>" .
+            "<li><strong>Enlace de acceso:</strong> <a href='" . htmlspecialchars($loginUrl) . "'>" . htmlspecialchars($loginUrl) . "</a></li>" .
+            "<li><strong>Usuario:</strong> " . htmlspecialchars($username) . "</li>" .
+            "<li><strong>Contrasena temporal:</strong> " . htmlspecialchars($plainPassword) . "</li>" .
+            "<li><strong>Rol asignado:</strong> " . htmlspecialchars($roleName) . "</li>" .
+            "</ul>" .
+            "<h4 style='margin-bottom:4px;'>Que puedes hacer con tu rol</h4>" .
+            "<p>" . role_welcome_description($roleId) . "</p>" .
+            "<p style='background:#f5f3ff;padding:10px;border-radius:6px;'>Te recomendamos cambiar tu contrasena al ingresar por primera vez, desde el menu de tu usuario (arriba a la derecha) &rarr; <em>Cambiar contrasena</em>. Si la olvidas, usa la opcion <em>&iquest;Olvidaste tu contrasena?</em> en la pantalla de inicio.</p>" .
+            "<p>Dentro del sistema encontraras un <strong>Manual de usuario</strong> con una guia paso a paso segun tu rol.</p>" .
+            "<p>Saludos,<br>Equipo Detallia &middot; Buadnet</p>" .
+            "</div>";
+    return send_app_mail($toEmail, $greetingName, "Bienvenido a Detallia - Tu acceso", $body);
+}
 
 // ---------------------------------------------------------------
 // CREAR / EDITAR usuario
@@ -50,6 +93,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
                 mysqli_stmt_bind_param($stmt, "ssssis", $useremail, $username, $full_name, $hashed, $role_id, $status);
                 if (mysqli_stmt_execute($stmt)) {
                     $success_msg = "Usuario creado correctamente.";
+
+                    // Enviar correo de bienvenida con datos de acceso y explicacion del rol
+                    $roleNameRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT name FROM roles WHERE id = " . (int) $role_id));
+                    $roleName = $roleNameRow ? $roleNameRow["name"] : "Usuario";
+                    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+                    $loginUrl = $scheme . "://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "/auth-login.php";
+                    $mailResult = send_welcome_email($useremail, $full_name, $username, $password, $roleName, $role_id, $loginUrl);
+                    if ($mailResult === true) {
+                        $success_msg .= " Se envio un correo de bienvenida a " . htmlspecialchars($useremail) . ".";
+                    } else {
+                        $success_msg .= " (No se pudo enviar el correo de bienvenida: " . htmlspecialchars($mailResult) . ")";
+                    }
                 } else {
                     if (mysqli_errno($link) == 1062) {
                         $error_msg = "Ya existe un usuario con ese correo.";

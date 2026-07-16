@@ -176,6 +176,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
     <title><?php echo $invoice["id"] ? "Editar factura" : "Nueva factura"; ?> | Detallia</title>
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
+    <link href="assets/libs/choices.js/public/assets/styles/choices.min.css" rel="stylesheet" type="text/css" />
 
 </head>
 
@@ -301,6 +302,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
 <!-- JAVASCRIPT -->
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+<script src="assets/libs/choices.js/public/assets/scripts/choices.min.js"></script>
 
 <script>
 var ARTICLES = <?php
@@ -365,6 +367,18 @@ function addRow(item) {
     var priceInput = tr.querySelector('.item-price');
     var historyCell = tr.querySelector('.item-history');
     var subtotalCell = tr.querySelector('.item-subtotal');
+
+    // Busqueda rapida en el select de articulo
+    if (typeof Choices !== 'undefined') {
+        new Choices(select, {
+            searchEnabled: true,
+            shouldSort: false,
+            itemSelectText: '',
+            searchResultLimit: 50,
+            noResultsText: 'Sin resultados',
+            searchPlaceholderValue: 'Buscar articulo...'
+        });
+    }
 
     function recalc() {
         var qty = parseFloat(qtyInput.value) || 0;

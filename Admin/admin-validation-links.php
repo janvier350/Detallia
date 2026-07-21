@@ -80,6 +80,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "toggl
     }
 }
 
+// ---------------------------------------------------------------
+// Eliminar lote completo (borra sus contactos pendientes)
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "delete") {
+    $link_id = (int) ($_POST["id"] ?? 0);
+    if ($link_id > 0) {
+        // pending_clients y validation_otp_codes se borran en cascada (ON DELETE CASCADE).
+        // Los clientes ya importados a la tabla clients no se ven afectados.
+        $stmt = mysqli_prepare($link, "DELETE FROM validation_links WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $link_id);
+        mysqli_stmt_execute($stmt);
+        $_SESSION["flash_success"] = "Lote eliminado correctamente.";
+        header("location: admin-validation-links.php");
+        exit;
+    }
+}
+
 if (isset($_SESSION["flash_success"])) {
     $success_msg = $_SESSION["flash_success"];
     unset($_SESSION["flash_success"]);
@@ -209,6 +226,13 @@ while ($row = mysqli_fetch_assoc($links)) {
                                                             <input type="hidden" name="active" value="<?php echo $l["active"] ? 0 : 1; ?>">
                                                             <button type="submit" class="btn btn-sm btn-soft-<?php echo $l["active"] ? 'danger' : 'success'; ?>" title="<?php echo $l["active"] ? 'Desactivar' : 'Activar'; ?>">
                                                                 <i class="mdi mdi-power"></i>
+                                                            </button>
+                                                        </form>
+                                                        <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este lote y todos sus contactos pendientes? Esta accion no se puede deshacer. Los clientes ya importados no se veran afectados.');">
+                                                            <input type="hidden" name="action" value="delete">
+                                                            <input type="hidden" name="id" value="<?php echo (int) $l['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-soft-danger" title="Eliminar lote">
+                                                                <i class="mdi mdi-delete"></i>
                                                             </button>
                                                         </form>
                                                     </td>

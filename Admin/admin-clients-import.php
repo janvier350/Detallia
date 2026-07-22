@@ -338,12 +338,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
         }
     }
 
-    $generatedLink = [
+    // Post-Redirect-Get: guardamos el resultado en sesion y redirigimos, para que
+    // refrescar la pagina (o volver atras) no vuelva a crear otro lote duplicado.
+    $_SESSION["import_generated_link"] = [
         "token" => $token,
         "label" => $linkLabel,
         "staged" => $staged,
         "skipped_empty" => $skippedEmpty,
     ];
+    header("location: admin-clients-import.php?done=1");
+    exit;
+}
+
+// Mostrar el paso final tras el redirect (PRG)
+if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) {
+    $generatedLink = $_SESSION["import_generated_link"];
+    unset($_SESSION["import_generated_link"]);
     $step = "done";
 }
 ?>
@@ -539,10 +549,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
                                         </div>
 
                                         <div class="mt-3">
-                                            <button type="submit" class="btn btn-primary">Generar enlace de validacion</button>
+                                            <button type="submit" class="btn btn-primary" id="stageSubmitBtn">Generar enlace de validacion</button>
                                             <a href="admin-clients-list.php" class="btn btn-light">Cancelar</a>
                                         </div>
                                     </form>
+                                    <script>
+                                    document.getElementById('importForm').addEventListener('submit', function () {
+                                        var btn = document.getElementById('stageSubmitBtn');
+                                        btn.disabled = true;
+                                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generando...';
+                                    });
+                                    </script>
                                 </div>
                             </div>
                         </div>

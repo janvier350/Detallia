@@ -17,6 +17,10 @@ if($link === false){
     die("ERROR: Could not connect. " . mysqli_connect_error());
 }
 
+// Codificacion UTF-8 para que los acentos y la enie (ej: SOLIS, AUDITORIA, FACTURACION)
+// se guarden y se muestren correctamente. Sin esto, se corrompen (mojibake).
+mysqli_set_charset($link, 'utf8mb4');
+
 // Ecuador esta en UTC-5 todo el ano (sin horario de verano)
 mysqli_query($link, "SET time_zone = '-05:00'");
 

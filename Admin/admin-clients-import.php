@@ -263,6 +263,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
             if (empty($parsedRows)) {
                 $error_msg = "No se encontraron filas validas (EN AMBOS / SOLO REGALOS) para importar.";
             } else {
+                // Guardamos las filas en sesion para no depender de enviar decenas de
+                // campos por fila en el POST (el limite max_input_vars de PHP truncaba
+                // la lista y solo se guardaban ~63 filas). Ahora el formulario solo
+                // envia la casilla "incluir" por fila.
+                $_SESSION["import_parsed"] = $parsedRows;
                 $step = "review";
             }
         } catch (Exception $e) {
@@ -275,70 +280,69 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "parse
 // PASO 2: enviar las filas seleccionadas a validacion (pendientes)
 // ---------------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage") {
-    $names               = $_POST["name"] ?? [];
-    $contactNames        = $_POST["contact_name"] ?? [];
-    $oficinas            = $_POST["oficina"] ?? [];
-    $zonas               = $_POST["zona"] ?? [];
-    $contactosInternos   = $_POST["contacto_interno"] ?? [];
-    $rucs                = $_POST["ruc_ci"] ?? [];
-    $ciudades            = $_POST["ciudad"] ?? [];
-    $addresses           = $_POST["address"] ?? [];
-    $notes               = $_POST["notes"] ?? [];
-    $classificationIds   = $_POST["classification_id"] ?? [];
-    $brandIds            = $_POST["brand_id"] ?? [];
+    // Los datos de cada fila estan en sesion (guardados en el paso de lectura).
+    // El formulario solo envia la casilla "incluir" por fila, para no chocar con
+    // el limite max_input_vars de PHP cuando hay cientos de contactos.
+    $sessionRows         = $_SESSION["import_parsed"] ?? [];
     $includes            = $_POST["include"] ?? [];
-    $mesesFacts          = $_POST["meses_fact"] ?? [];
-    $detalleMesesArr     = $_POST["detalle_meses"] ?? [];
-    $estatusExcelArr     = $_POST["estatus_excel"] ?? [];
-    $alertas             = $_POST["alerta"] ?? [];
+    $brandOverrides      = $_POST["brand_id"] ?? [];
+    $classOverrides      = $_POST["classification_id"] ?? [];
     $linkLabel           = trim($_POST["link_label"] ?? "") ?: ("Importacion " . date("d/m/Y H:i"));
 
     $staged = 0;
     $skippedEmpty = 0;
-
-    $token = bin2hex(random_bytes(24));
-    $createdBy = (int) $_SESSION["id"];
-    $linkStmt = mysqli_prepare($link, "INSERT INTO validation_links (token, label, created_by) VALUES (?, ?, ?)");
-    mysqli_stmt_bind_param($linkStmt, "ssi", $token, $linkLabel, $createdBy);
-    mysqli_stmt_execute($linkStmt);
-    $linkId = mysqli_insert_id($link);
-
-    $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, meses_fact, detalle_meses, estatus_excel, alerta, ciudad, address, notes, brand_id, classification_id)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
     $skippedUnchecked = 0;
-    foreach ($names as $idx => $name) {
-        if (empty($includes[$idx])) {
-            $skippedUnchecked++;
-            continue;
-        }
-        $name = trim($name);
-        if ($name === "") {
-            $skippedEmpty++;
-            continue;
-        }
-        $contact       = trim($contactNames[$idx] ?? "");
-        $oficina       = trim($oficinas[$idx] ?? "");
-        $zona          = trim($zonas[$idx] ?? "");
-        $contacto      = trim($contactosInternos[$idx] ?? "");
-        $ruc           = trim($rucs[$idx] ?? "");
-        $mesesFact     = trim($mesesFacts[$idx] ?? "");
-        $detalleMeses  = trim($detalleMesesArr[$idx] ?? "");
-        $estatusExcel  = trim($estatusExcelArr[$idx] ?? "");
-        $alerta        = trim($alertas[$idx] ?? "");
-        $ciudad        = trim($ciudades[$idx] ?? "");
-        $address       = trim($addresses[$idx] ?? "");
-        $note          = trim($notes[$idx] ?? "");
-        $classId = (int) ($classificationIds[$idx] ?? 0);
-        $classId = $classId > 0 ? $classId : null;
-        $brandId = (int) ($brandIds[$idx] ?? 0);
-        $brandId = $brandId > 0 ? $brandId : null;
 
-        mysqli_stmt_bind_param($stmt, "isssssssssssssii", $linkId, $name, $contact, $oficina, $zona, $contacto, $ruc, $mesesFact, $detalleMeses, $estatusExcel, $alerta, $ciudad, $address, $note, $brandId, $classId);
-        if (mysqli_stmt_execute($stmt)) {
-            $staged++;
+    if (empty($sessionRows)) {
+        $error_msg = "La sesion expiro. Vuelve a subir el archivo.";
+        $step = "upload";
+    } else {
+        $token = bin2hex(random_bytes(24));
+        $createdBy = (int) $_SESSION["id"];
+        $linkStmt = mysqli_prepare($link, "INSERT INTO validation_links (token, label, created_by) VALUES (?, ?, ?)");
+        mysqli_stmt_bind_param($linkStmt, "ssi", $token, $linkLabel, $createdBy);
+        mysqli_stmt_execute($linkStmt);
+        $linkId = mysqli_insert_id($link);
+
+        $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, meses_fact, detalle_meses, estatus_excel, alerta, ciudad, address, notes, brand_id, classification_id)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+        foreach ($sessionRows as $idx => $r) {
+            if (empty($includes[$idx])) {
+                $skippedUnchecked++;
+                continue;
+            }
+            $name = trim($r["name"] ?? "");
+            if ($name === "") {
+                $skippedEmpty++;
+                continue;
+            }
+            $contact       = trim($r["contact_name"] ?? "");
+            $oficina       = trim($r["oficina"] ?? "");
+            $zona          = trim($r["zona"] ?? "");
+            $contacto      = trim($r["contacto_interno"] ?? "");
+            $ruc           = trim($r["ruc_ci"] ?? "");
+            $mesesFact     = trim($r["meses_fact"] ?? "");
+            $detalleMeses  = trim($r["detalle_meses"] ?? "");
+            $estatusExcel  = trim($r["estatus_excel"] ?? "");
+            $alerta        = trim($r["alerta"] ?? "");
+            $ciudad        = trim($r["ciudad"] ?? "");
+            $address       = trim($r["address"] ?? "");
+            $note          = trim($r["notes"] ?? "");
+            // La marca/clasificacion pueden venir editadas en el formulario; si no, se usa la sugerida.
+            $classId = (int) ($classOverrides[$idx] ?? $r["classification_id"] ?? 0);
+            $classId = $classId > 0 ? $classId : null;
+            $brandId = (int) ($brandOverrides[$idx] ?? $r["brand_id"] ?? 0);
+            $brandId = $brandId > 0 ? $brandId : null;
+
+            mysqli_stmt_bind_param($stmt, "isssssssssssssii", $linkId, $name, $contact, $oficina, $zona, $contacto, $ruc, $mesesFact, $detalleMeses, $estatusExcel, $alerta, $ciudad, $address, $note, $brandId, $classId);
+            if (mysqli_stmt_execute($stmt)) {
+                $staged++;
+            }
         }
+        unset($_SESSION["import_parsed"]);
     }
+    if ($step !== "upload") {
 
     // Post-Redirect-Get: guardamos el resultado en sesion y redirigimos, para que
     // refrescar la pagina (o volver atras) no vuelva a crear otro lote duplicado.
@@ -351,6 +355,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
     ];
     header("location: admin-clients-import.php?done=1");
     exit;
+    }
 }
 
 // Mostrar el paso final tras el redirect (PRG)
@@ -456,7 +461,8 @@ if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) 
                                         <span class="badge bg-warning"><?php echo $cntExisten; ?> ya existen en Clientes</span>,
                                         <span class="badge bg-danger"><?php echo $cntRepetidos; ?> repetidos en el archivo</span>.
                                         Solo se enviaran a validacion los que dejes <strong>marcados</strong>. Si quieres incluir alguno de los
-                                        "ya existe" o "repetido", marca su casilla manualmente.
+                                        "ya existe" o "repetido", marca su casilla manualmente. Los datos (nombre, marca, ciudad, etc.) se podran
+                                        ajustar durante la validacion.
                                     </div>
 
                                     <p class="text-muted">
@@ -497,68 +503,29 @@ if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) 
                                                 </thead>
                                                 <tbody>
                                                     <?php foreach ($parsedRows as $i => $r): ?>
-                                                        <?php $rowClass = ($r["duplicate_in_batch"] || $r["duplicate_in_db"]) ? "table-secondary" : ""; ?>
+                                                        <?php
+                                                            $rowClass = ($r["duplicate_in_batch"] || $r["duplicate_in_db"]) ? "table-secondary" : "";
+                                                            $brandName = $r["brand_id"] && isset($brandsMap[$r["brand_id"]]) ? $brandsMap[$r["brand_id"]] : "—";
+                                                            $className = $r["classification_id"] && isset($classMap[$r["classification_id"]]) ? $classMap[$r["classification_id"]] : "—";
+                                                        ?>
                                                         <tr class="<?php echo $rowClass; ?>">
                                                             <td>
                                                                 <input type="checkbox" name="include[<?php echo $i; ?>]" value="1" class="row-include" <?php echo $r["include"] ? "checked" : ""; ?>>
                                                             </td>
-                                                            <td>
-                                                                <input type="text" name="name[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["name"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="contact_name[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["contact_name"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="oficina[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["oficina"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="zona[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["zona"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="contacto_interno[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["contacto_interno"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="ruc_ci[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ruc_ci"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <?php echo htmlspecialchars($r["meses_fact"]); ?>
-                                                                <input type="hidden" name="meses_fact[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["meses_fact"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <?php echo htmlspecialchars($r["detalle_meses"]); ?>
-                                                                <input type="hidden" name="detalle_meses[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["detalle_meses"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <?php echo htmlspecialchars($r["estatus_excel"]); ?>
-                                                                <input type="hidden" name="estatus_excel[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["estatus_excel"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <?php echo htmlspecialchars($r["alerta"]); ?>
-                                                                <input type="hidden" name="alerta[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["alerta"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="ciudad[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["ciudad"]); ?>">
-                                                                <input type="hidden" name="address[<?php echo $i; ?>]" value="<?php echo htmlspecialchars($r["address"]); ?>">
-                                                            </td>
-                                                            <td>
-                                                                <select name="brand_id[<?php echo $i; ?>]" class="form-select form-select-sm">
-                                                                    <option value="">Sin marca</option>
-                                                                    <?php foreach ($brandsMap as $bid => $bname): ?>
-                                                                        <option value="<?php echo $bid; ?>" <?php echo $r["brand_id"] == $bid ? "selected" : ""; ?>><?php echo htmlspecialchars($bname); ?></option>
-                                                                    <?php endforeach; ?>
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <select name="classification_id[<?php echo $i; ?>]" class="form-select form-select-sm">
-                                                                    <option value="">Sin clasificacion</option>
-                                                                    <?php foreach ($classMap as $cid => $cname): ?>
-                                                                        <option value="<?php echo $cid; ?>" <?php echo $r["classification_id"] == $cid ? "selected" : ""; ?>><?php echo htmlspecialchars($cname); ?></option>
-                                                                    <?php endforeach; ?>
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="notes[<?php echo $i; ?>]" class="form-control form-control-sm" value="<?php echo htmlspecialchars($r["notes"]); ?>">
-                                                            </td>
+                                                            <td><?php echo htmlspecialchars($r["name"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["contact_name"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["oficina"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["zona"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["contacto_interno"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["ruc_ci"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["meses_fact"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["detalle_meses"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["estatus_excel"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["alerta"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["ciudad"]); ?></td>
+                                                            <td><?php echo htmlspecialchars($brandName); ?></td>
+                                                            <td><?php echo htmlspecialchars($className); ?></td>
+                                                            <td><?php echo htmlspecialchars($r["notes"]); ?></td>
                                                             <td>
                                                                 <?php if ($r["duplicate_in_db"]): ?>
                                                                     <span class="badge bg-warning">Ya existe</span>

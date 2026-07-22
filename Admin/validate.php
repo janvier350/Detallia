@@ -226,8 +226,15 @@ if ($verifiedEmail) {
                             ?>
 
                             <?php if ($anyPending): ?>
+                                <div class="mb-3" style="max-width:420px;">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="mdi mdi-magnify"></i></span>
+                                        <input type="text" id="tableSearch" class="form-control" placeholder="Buscar en la tabla (nombre, contacto interno, ciudad...)">
+                                    </div>
+                                    <small class="text-muted"><span id="visibleCount"><?php echo count($pendingRows); ?></span> de <?php echo count($pendingRows); ?> contactos</small>
+                                </div>
                                 <div class="table-responsive">
-                                    <table class="table table-bordered table-sm align-middle">
+                                    <table class="table table-bordered table-sm align-middle" id="pendingTable">
                                         <thead class="table-light">
                                             <tr>
                                                 <th style="min-width:160px">Nombre</th>
@@ -238,7 +245,6 @@ if ($verifiedEmail) {
                                                 <th style="min-width:90px">RUC/CI</th>
                                                 <th style="min-width:90px">Meses fact.</th>
                                                 <th style="min-width:180px">Detalle meses</th>
-                                                <th style="min-width:110px">Estatus</th>
                                                 <th style="min-width:150px">Alerta</th>
                                                 <th style="min-width:120px">Ciudad</th>
                                                 <th style="min-width:140px">Direccion</th>
@@ -264,7 +270,6 @@ if ($verifiedEmail) {
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['ruc_ci'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['meses_fact'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['detalle_meses'] ?? ''); ?>" readonly></td>
-                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['estatus_excel'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['alerta'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="ciudad" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['ciudad'] ?? ''); ?>"></td>
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="address" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['address'] ?? ''); ?>"></td>
@@ -353,6 +358,45 @@ if ($verifiedEmail) {
 </div>
 
 <?php include 'layouts/vendor-scripts.php'; ?>
+
+<script>
+(function () {
+    var search = document.getElementById('tableSearch');
+    var table = document.getElementById('pendingTable');
+    var counter = document.getElementById('visibleCount');
+    if (!search || !table) return;
+
+    var rows = table.querySelectorAll('tbody tr');
+
+    function rowText(row) {
+        var parts = [];
+        // Texto plano de las celdas
+        parts.push(row.innerText || row.textContent || '');
+        // Valores de inputs y selects (la mayoria de columnas son campos)
+        row.querySelectorAll('input, textarea').forEach(function (el) {
+            if (el.type !== 'hidden') parts.push(el.value || '');
+        });
+        row.querySelectorAll('select').forEach(function (sel) {
+            if (sel.selectedIndex >= 0) parts.push(sel.options[sel.selectedIndex].text || '');
+        });
+        return parts.join(' ').toLowerCase();
+    }
+
+    // Cachear el texto de cada fila una sola vez
+    rows.forEach(function (row) { row.dataset.search = rowText(row); });
+
+    search.addEventListener('input', function () {
+        var q = this.value.trim().toLowerCase();
+        var visible = 0;
+        rows.forEach(function (row) {
+            var match = q === '' || row.dataset.search.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        if (counter) counter.innerText = visible;
+    });
+})();
+</script>
 
 </body>
 

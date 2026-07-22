@@ -59,6 +59,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
     $importSummary = ["imported" => $imported, "skipped" => $skipped];
 }
 
+$sends = mysqli_query($link, "SELECT s.email, s.success, s.sent_at, COALESCE(u.full_name, u.username) AS sent_by_name
+                               FROM validation_link_sends s
+                               LEFT JOIN users u ON u.id = s.sent_by
+                               WHERE s.link_id = " . (int) $link_id . "
+                               ORDER BY s.sent_at DESC");
+
 $pending = mysqli_query($link, "SELECT pc.*, b.name AS brand_name, cl.name AS classification_name
                                  FROM pending_clients pc
                                  LEFT JOIN brands b ON b.id = pc.brand_id
@@ -113,6 +119,46 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Envios de este enlace</h5>
+                                <?php if (mysqli_num_rows($sends) === 0): ?>
+                                    <p class="text-muted">Este enlace aun no se ha enviado por correo a ningun encargado.</p>
+                                <?php else: ?>
+                                    <div class="table-responsive mb-2">
+                                        <table class="table table-sm table-nowrap mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Correo del encargado</th>
+                                                    <th>Enviado por</th>
+                                                    <th>Fecha de envio</th>
+                                                    <th>Resultado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php while ($s = mysqli_fetch_assoc($sends)): ?>
+                                                    <tr>
+                                                        <td><?php echo htmlspecialchars($s["email"]); ?></td>
+                                                        <td><?php echo htmlspecialchars($s["sent_by_name"] ?? "—"); ?></td>
+                                                        <td><?php echo htmlspecialchars(date("d/m/Y H:i", strtotime($s["sent_at"]))); ?></td>
+                                                        <td>
+                                                            <span class="badge bg-<?php echo $s["success"] ? 'success' : 'danger'; ?>">
+                                                                <?php echo $s["success"] ? "Enviado" : "Fallo"; ?>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                <?php endwhile; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="row">
                     <div class="col-12">

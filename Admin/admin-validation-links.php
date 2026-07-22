@@ -44,13 +44,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "send_
 
             $sent = 0;
             $failed = [];
+            $sentBy = (int) $_SESSION["id"];
+            $logStmt = mysqli_prepare($link, "INSERT INTO validation_link_sends (link_id, email, sent_by, success) VALUES (?, ?, ?, ?)");
             foreach ($validEmails as $email) {
                 $result = send_app_mail($email, $email, "Validacion de contactos - Detallia", $body);
-                if ($result === true) {
+                $ok = ($result === true) ? 1 : 0;
+                if ($ok) {
                     $sent++;
                 } else {
                     $failed[] = $email;
                 }
+                mysqli_stmt_bind_param($logStmt, "isii", $link_id, $email, $sentBy, $ok);
+                mysqli_stmt_execute($logStmt);
             }
 
             if ($sent > 0) {

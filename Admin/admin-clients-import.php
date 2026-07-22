@@ -306,8 +306,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
     $stmt = mysqli_prepare($link, "INSERT INTO pending_clients (link_id, name, contact_name, oficina, zona, contacto_interno, ruc_ci, meses_fact, detalle_meses, estatus_excel, alerta, ciudad, address, notes, brand_id, classification_id)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
+    $skippedUnchecked = 0;
     foreach ($names as $idx => $name) {
         if (empty($includes[$idx])) {
+            $skippedUnchecked++;
             continue;
         }
         $name = trim($name);
@@ -345,6 +347,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "stage
         "label" => $linkLabel,
         "staged" => $staged,
         "skipped_empty" => $skippedEmpty,
+        "skipped_unchecked" => $skippedUnchecked,
     ];
     header("location: admin-clients-import.php?done=1");
     exit;
@@ -422,6 +425,20 @@ if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) 
                 <?php endif; ?>
 
                 <?php if ($step === "review"): ?>
+                    <?php
+                        $cntNuevos = 0;
+                        $cntExisten = 0;
+                        $cntRepetidos = 0;
+                        foreach ($parsedRows as $rr) {
+                            if ($rr["duplicate_in_db"]) {
+                                $cntExisten++;
+                            } elseif ($rr["duplicate_in_batch"]) {
+                                $cntRepetidos++;
+                            } else {
+                                $cntNuevos++;
+                            }
+                        }
+                    ?>
                     <div class="row">
                         <div class="col-12">
                             <div class="card">
@@ -431,6 +448,15 @@ if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) 
                                         <div>
                                             <span class="badge bg-secondary-subtle text-secondary me-1">Gris = ya existe / duplicado, sin marcar</span>
                                         </div>
+                                    </div>
+
+                                    <div class="alert alert-info">
+                                        De las <strong><?php echo count($parsedRows); ?></strong> filas leidas del Excel:
+                                        <span class="badge bg-success"><?php echo $cntNuevos; ?> nuevos</span> (marcados por defecto),
+                                        <span class="badge bg-warning"><?php echo $cntExisten; ?> ya existen en Clientes</span>,
+                                        <span class="badge bg-danger"><?php echo $cntRepetidos; ?> repetidos en el archivo</span>.
+                                        Solo se enviaran a validacion los que dejes <strong>marcados</strong>. Si quieres incluir alguno de los
+                                        "ya existe" o "repetido", marca su casilla manualmente.
                                     </div>
 
                                     <p class="text-muted">
@@ -580,6 +606,9 @@ if (($_GET["done"] ?? "") === "1" && isset($_SESSION["import_generated_link"])) 
                                     <p>
                                         <strong><?php echo (int) $generatedLink["staged"]; ?></strong> contactos quedaron pendientes de validacion
                                         en el lote "<?php echo htmlspecialchars($generatedLink["label"]); ?>".
+                                        <?php if (!empty($generatedLink["skipped_unchecked"])): ?>
+                                            <br><span class="text-muted"><?php echo (int) $generatedLink["skipped_unchecked"]; ?> filas no se incluyeron porque estaban sin marcar (ya existen en Clientes o repetidas en el archivo).</span>
+                                        <?php endif; ?>
                                         <?php if ($generatedLink["skipped_empty"] > 0): ?>
                                             (<?php echo (int) $generatedLink["skipped_empty"]; ?> omitidos por no tener nombre.)
                                         <?php endif; ?>

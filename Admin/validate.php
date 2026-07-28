@@ -411,6 +411,7 @@ if ($verifiedEmail) {
                                     <table class="table table-bordered table-sm align-middle" id="pendingTable">
                                         <thead class="table-light">
                                             <tr>
+                                                <th style="min-width:110px">Acciones</th>
                                                 <th style="min-width:160px">Nombre</th>
                                                 <th style="min-width:140px">Empresa/Grupo</th>
                                                 <th style="min-width:110px">Oficina</th>
@@ -425,13 +426,20 @@ if ($verifiedEmail) {
                                                 <th style="min-width:160px">Notas</th>
                                                 <th style="min-width:140px">Marca</th>
                                                 <th style="min-width:130px">Clasificacion</th>
-                                                <th style="min-width:150px">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($pendingRows as $p): ?>
                                                 <?php $rowFormId = "rowform" . (int) $p['id']; ?>
                                                 <tr>
+                                                    <td class="text-nowrap">
+                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="confirm" class="btn btn-success btn-sm">
+                                                            <i class="mdi mdi-check-bold"></i>
+                                                        </button>
+                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="reject" class="btn btn-outline-danger btn-sm">
+                                                            <i class="mdi mdi-close"></i>
+                                                        </button>
+                                                    </td>
                                                     <td>
                                                         <input type="hidden" form="<?php echo $rowFormId; ?>" name="token" value="<?php echo htmlspecialchars($token); ?>">
                                                         <input type="hidden" form="<?php echo $rowFormId; ?>" name="pending_id" value="<?php echo (int) $p['id']; ?>">
@@ -463,14 +471,6 @@ if ($verifiedEmail) {
                                                                 <option value="<?php echo (int) $c['id']; ?>" <?php echo $p['classification_id'] == $c['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
                                                             <?php endwhile; ?>
                                                         </select>
-                                                    </td>
-                                                    <td class="text-nowrap">
-                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="confirm" class="btn btn-success btn-sm">
-                                                            <i class="mdi mdi-check-bold"></i>
-                                                        </button>
-                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="reject" class="btn btn-outline-danger btn-sm">
-                                                            <i class="mdi mdi-close"></i>
-                                                        </button>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>

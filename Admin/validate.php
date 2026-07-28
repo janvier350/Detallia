@@ -560,8 +560,11 @@ if ($verifiedEmail) {
     // Cachear el texto de cada fila una sola vez
     rows.forEach(function (row) { row.dataset.search = rowText(row); });
 
-    search.addEventListener('input', function () {
-        var q = this.value.trim().toLowerCase();
+    // Recordar el filtro por lote para no perderlo al aprobar/rechazar (la pagina se recarga por POST)
+    var storeKey = 'dtv_filter_<?php echo substr(md5($token), 0, 16); ?>';
+
+    function applyFilter() {
+        var q = search.value.trim().toLowerCase();
         var visible = 0;
         rows.forEach(function (row) {
             var match = q === '' || row.dataset.search.indexOf(q) !== -1;
@@ -569,7 +572,19 @@ if ($verifiedEmail) {
             if (match) visible++;
         });
         if (counter) counter.innerText = visible;
+    }
+
+    search.addEventListener('input', function () {
+        try { localStorage.setItem(storeKey, this.value); } catch (e) {}
+        applyFilter();
     });
+
+    // Restaurar el filtro guardado al cargar la pagina
+    try {
+        var saved = localStorage.getItem(storeKey);
+        if (saved) { search.value = saved; }
+    } catch (e) {}
+    applyFilter();
 })();
 </script>
 

@@ -30,6 +30,9 @@ function send_app_mail($toEmail, $toName, $subject, $htmlBody)
         $mail->setFrom($gmailid, $gmailusername ?: 'Detallia');
         $mail->addAddress($toEmail, $toName);
 
+        $mail->CharSet = 'UTF-8';
+        $mail->Encoding = 'base64';
+
         $mail->isHTML(true);
         $mail->Subject = $subject;
         $mail->Body = $htmlBody;

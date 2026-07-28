@@ -12,7 +12,7 @@ if ($token === "") {
     die("Enlace invalido.");
 }
 
-$stmt = mysqli_prepare($link, "SELECT id, label, active, finished_at, finished_by FROM validation_links WHERE token = ?");
+$stmt = mysqli_prepare($link, "SELECT id, label, mode, active, finished_at, finished_by FROM validation_links WHERE token = ?");
 mysqli_stmt_bind_param($stmt, "s", $token);
 mysqli_stmt_execute($stmt);
 $batch = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -138,11 +138,71 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["
     }
 }
 
+$isCollection = ($batch["mode"] ?? "validacion") === "recoleccion";
+
+// ---------------------------------------------------------------
+// Modo recoleccion: el encargado agrega un contacto desde cero
+// ---------------------------------------------------------------
+if ($isCollection && $_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_contact" && $verifiedEmail && $batch["active"]) {
+    $name            = trim($_POST["name"] ?? "");
+    $contact_name    = trim($_POST["contact_name"] ?? "");
+    $contacto_interno = trim($_POST["contacto_interno"] ?? "");
+    $ciudad          = trim($_POST["ciudad"] ?? "");
+    $address         = trim($_POST["address"] ?? "");
+    $brandId         = (int) ($_POST["brand_id"] ?? 0);
+    $brandId         = $brandId > 0 ? $brandId : null;
+    $classId         = (int) ($_POST["classification_id"] ?? 0);
+    $classId         = $classId > 0 ? $classId : null;
+
+    if ($name === "") {
+        $error_msg = "La razon social es obligatoria.";
+    } elseif ($classId === null) {
+        $error_msg = "Selecciona la categoria de cliente.";
+    } elseif ($brandId === null) {
+        $error_msg = "Selecciona la marca.";
+    } else {
+        $ins = mysqli_prepare($link, "INSERT INTO pending_clients
+                (link_id, name, contact_name, contacto_interno, ciudad, address, brand_id, classification_id, status, validated_by_email, validated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, NOW())");
+        mysqli_stmt_bind_param($ins, "isssssiis", $batch["id"], $name, $contact_name, $contacto_interno, $ciudad, $address, $brandId, $classId, $verifiedEmail);
+        if (mysqli_stmt_execute($ins)) {
+            $info_msg = "Contacto \"" . $name . "\" agregado. Puedes seguir agregando mas.";
+        } else {
+            $error_msg = "No se pudo guardar el contacto. Intenta de nuevo.";
+        }
+    }
+}
+
+// ---------------------------------------------------------------
+// Modo recoleccion: eliminar un contacto propio aun no importado
+// ---------------------------------------------------------------
+if ($isCollection && $_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "delete_own" && $verifiedEmail && $batch["active"]) {
+    $pendingId = (int) ($_POST["pending_id"] ?? 0);
+    if ($pendingId > 0) {
+        $del = mysqli_prepare($link, "DELETE FROM pending_clients WHERE id = ? AND link_id = ? AND validated_by_email = ? AND imported = 0");
+        mysqli_stmt_bind_param($del, "iis", $pendingId, $batch["id"], $verifiedEmail);
+        mysqli_stmt_execute($del);
+        $info_msg = "Contacto eliminado.";
+    }
+}
+
 $brandsRes = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
 $classRes  = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY name");
 
 if ($verifiedEmail) {
-    $pending = mysqli_query($link, "SELECT * FROM pending_clients WHERE link_id = " . (int) $batch["id"] . " ORDER BY status = 'pendiente' DESC, name ASC");
+    if ($isCollection) {
+        $stmtOwn = mysqli_prepare($link, "SELECT pc.*, b.name AS brand_name, cl.name AS classification_name
+                                           FROM pending_clients pc
+                                           LEFT JOIN brands b ON b.id = pc.brand_id
+                                           LEFT JOIN client_classifications cl ON cl.id = pc.classification_id
+                                           WHERE pc.link_id = ? AND pc.validated_by_email = ?
+                                           ORDER BY pc.id DESC");
+        mysqli_stmt_bind_param($stmtOwn, "is", $batch["id"], $verifiedEmail);
+        mysqli_stmt_execute($stmtOwn);
+        $ownContacts = mysqli_stmt_get_result($stmtOwn);
+    } else {
+        $pending = mysqli_query($link, "SELECT * FROM pending_clients WHERE link_id = " . (int) $batch["id"] . " ORDER BY status = 'pendiente' DESC, name ASC");
+    }
 }
 ?>
 <?php include 'layouts/head-main.php'; ?>
@@ -212,7 +272,121 @@ if ($verifiedEmail) {
                             </div>
 
                             <?php if ($info_msg): ?><div class="alert alert-success"><?php echo htmlspecialchars($info_msg); ?></div><?php endif; ?>
+                            <?php if ($error_msg): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_msg); ?></div><?php endif; ?>
 
+                            <?php if ($isCollection): ?>
+                                <!-- ============ MODO RECOLECCION ============ -->
+                                <div class="card mb-4">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-3"><i class="mdi mdi-account-plus-outline me-1"></i> Agregar un contacto</h6>
+                                        <form method="post" class="row g-3">
+                                            <input type="hidden" name="action" value="add_contact">
+                                            <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                                            <div class="col-md-6">
+                                                <label class="form-label">Razon social <span class="text-danger">*</span></label>
+                                                <input type="text" name="name" class="form-control" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Nombre de quien recibe</label>
+                                                <input type="text" name="contact_name" class="form-control">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Contacto (persona)</label>
+                                                <input type="text" name="contacto_interno" class="form-control" placeholder="Nombre de la persona de contacto">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Categoria de cliente <span class="text-danger">*</span></label>
+                                                <select name="classification_id" class="form-select" required>
+                                                    <option value="">Selecciona...</option>
+                                                    <?php mysqli_data_seek($classRes, 0); while ($c = mysqli_fetch_assoc($classRes)): ?>
+                                                        <option value="<?php echo (int) $c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Marca <span class="text-danger">*</span></label>
+                                                <select name="brand_id" class="form-select" required>
+                                                    <option value="">Selecciona...</option>
+                                                    <?php mysqli_data_seek($brandsRes, 0); while ($b = mysqli_fetch_assoc($brandsRes)): ?>
+                                                        <option value="<?php echo (int) $b['id']; ?>"><?php echo htmlspecialchars($b['name']); ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Ciudad</label>
+                                                <input type="text" name="ciudad" class="form-control">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label">Direccion</label>
+                                                <input type="text" name="address" class="form-control">
+                                            </div>
+                                            <div class="col-12 text-end">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="mdi mdi-content-save-outline me-1"></i> Agregar contacto
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <h6 class="text-muted">Contactos que has ingresado (<?php echo mysqli_num_rows($ownContacts); ?>)</h6>
+                                <?php if (mysqli_num_rows($ownContacts) === 0): ?>
+                                    <div class="alert alert-info">Aun no has ingresado contactos. Usa el formulario de arriba.</div>
+                                <?php else: ?>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-sm align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Razon social</th>
+                                                    <th>Quien recibe</th>
+                                                    <th>Contacto</th>
+                                                    <th>Categoria</th>
+                                                    <th>Marca</th>
+                                                    <th>Ciudad</th>
+                                                    <th>Direccion</th>
+                                                    <th>Estado</th>
+                                                    <th></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php mysqli_data_seek($ownContacts, 0); while ($o = mysqli_fetch_assoc($ownContacts)): ?>
+                                                    <tr>
+                                                        <td><?php echo htmlspecialchars($o["name"]); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["contact_name"] ?? ""); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["contacto_interno"] ?? ""); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["classification_name"] ?? "—"); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["brand_name"] ?? "—"); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["ciudad"] ?? ""); ?></td>
+                                                        <td><?php echo htmlspecialchars($o["address"] ?? ""); ?></td>
+                                                        <td>
+                                                            <?php if ($o["imported"]): ?>
+                                                                <span class="badge bg-primary">En Clientes</span>
+                                                            <?php else: ?>
+                                                                <?php $bc = ["pendiente" => "warning", "confirmado" => "success", "rechazado" => "danger"][$o["status"]] ?? "secondary"; ?>
+                                                                <span class="badge bg-<?php echo $bc; ?>"><?php echo ucfirst($o["status"]); ?></span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td class="text-nowrap">
+                                                            <?php if (!$o["imported"] && $o["status"] === "pendiente"): ?>
+                                                                <form method="post" onsubmit="return confirm('¿Eliminar este contacto?');">
+                                                                    <input type="hidden" name="action" value="delete_own">
+                                                                    <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                                                                    <input type="hidden" name="pending_id" value="<?php echo (int) $o['id']; ?>">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="mdi mdi-delete"></i></button>
+                                                                </form>
+                                                            <?php else: ?>
+                                                                <span class="text-muted small">—</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                    </tr>
+                                                <?php endwhile; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+
+                            <?php else: ?>
+                            <!-- ============ MODO VALIDACION (existente) ============ -->
                             <?php
                                 mysqli_data_seek($pending, 0);
                                 $anyPending = false;
@@ -348,6 +522,7 @@ if ($verifiedEmail) {
                                     </tbody>
                                 </table>
                             </div>
+                            <?php endif; /* fin modo validacion */ ?>
                         <?php endif; ?>
 
                     </div>

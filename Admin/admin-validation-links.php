@@ -13,6 +13,28 @@ $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "
 $baseUrl = $scheme . "://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']);
 
 // ---------------------------------------------------------------
+// Crear un enlace de recoleccion (el CEO ingresa los contactos desde cero)
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "create_collection") {
+    $label = trim($_POST["label"] ?? "");
+    if ($label === "") {
+        $error_msg = "Ingresa un nombre para el lote.";
+    } else {
+        $token = bin2hex(random_bytes(24));
+        $createdBy = (int) $_SESSION["id"];
+        $stmt = mysqli_prepare($link, "INSERT INTO validation_links (token, label, mode, created_by) VALUES (?, ?, 'recoleccion', ?)");
+        mysqli_stmt_bind_param($stmt, "ssi", $token, $label, $createdBy);
+        if (mysqli_stmt_execute($stmt)) {
+            $_SESSION["flash_success"] = "Enlace de recoleccion creado. Ya puedes enviarlo por correo.";
+            header("location: admin-validation-links.php");
+            exit;
+        } else {
+            $error_msg = "No se pudo crear el enlace.";
+        }
+    }
+}
+
+// ---------------------------------------------------------------
 // Enviar el enlace por correo a los encargados
 // ---------------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "send_email") {
@@ -20,7 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "send_
     $emailsRaw = trim($_POST["emails"] ?? "");
     $message = trim($_POST["message"] ?? "");
 
-    $stmt = mysqli_prepare($link, "SELECT token, label FROM validation_links WHERE id = ?");
+    $stmt = mysqli_prepare($link, "SELECT token, label, mode FROM validation_links WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "i", $link_id);
     mysqli_stmt_execute($stmt);
     $batch = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -28,6 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "send_
     if (!$batch) {
         $error_msg = "El enlace no existe.";
     } else {
+        $isCollection = ($batch["mode"] ?? "validacion") === "recoleccion";
         $emails = array_filter(array_map('trim', explode(',', $emailsRaw)));
         $validEmails = array_filter($emails, function ($e) { return filter_var($e, FILTER_VALIDATE_EMAIL); });
 
@@ -35,11 +58,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "send_
             $error_msg = "Ingresa al menos un correo valido.";
         } else {
             $validateUrl = $baseUrl . "/validate.php?token=" . $batch["token"];
-            $body = "<p>Se te ha asignado la validacion del lote de contactos <strong>" . htmlspecialchars($batch["label"]) . "</strong> en Detallia.</p>";
+            $intro = $isCollection
+                ? "Se te ha solicitado ingresar los contactos del lote <strong>" . htmlspecialchars($batch["label"]) . "</strong> en Detallia."
+                : "Se te ha asignado la validacion del lote de contactos <strong>" . htmlspecialchars($batch["label"]) . "</strong> en Detallia.";
+            $callToAction = $isCollection
+                ? "Ingresa a este enlace para registrar los contactos (te pedira verificar tu correo con un codigo):"
+                : "Ingresa a este enlace para revisar y confirmar los contactos (te pedira verificar tu correo institucional con un codigo):";
+            $body = "<p>" . $intro . "</p>";
             if ($message !== "") {
                 $body .= "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
             }
-            $body .= "<p>Ingresa a este enlace para revisar y confirmar los contactos (te pedira verificar tu correo institucional con un codigo):</p>" .
+            $body .= "<p>" . $callToAction . "</p>" .
                       "<p><a href='" . htmlspecialchars($validateUrl) . "'>" . htmlspecialchars($validateUrl) . "</a></p>";
 
             $sent = 0;
@@ -107,7 +136,7 @@ if (isset($_SESSION["flash_success"])) {
     unset($_SESSION["flash_success"]);
 }
 
-$links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.active, vl.created_at, vl.finished_at, vl.finished_by,
+$links = mysqli_query($link, "SELECT vl.id, vl.token, vl.label, vl.mode, vl.active, vl.created_at, vl.finished_at, vl.finished_by,
                                       COALESCE(u.full_name, u.username) AS created_by_name,
                                       SUM(CASE WHEN pc.status = 'pendiente' THEN 1 ELSE 0 END) AS total_pendiente,
                                       SUM(CASE WHEN pc.status = 'confirmado' THEN 1 ELSE 0 END) AS total_confirmado,
@@ -177,9 +206,15 @@ while ($row = mysqli_fetch_assoc($links)) {
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Lotes generados</h5>
-                                    <a href="admin-clients-import.php" class="btn btn-primary waves-effect waves-light">
-                                        <i class="mdi mdi-plus me-1"></i> Nueva importacion
-                                    </a>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-success waves-effect waves-light"
+                                            data-bs-toggle="modal" data-bs-target="#collectionModal">
+                                            <i class="mdi mdi-account-plus-outline me-1"></i> Nuevo enlace de recoleccion
+                                        </button>
+                                        <a href="admin-clients-import.php" class="btn btn-primary waves-effect waves-light">
+                                            <i class="mdi mdi-file-import-outline me-1"></i> Importar desde Excel
+                                        </a>
+                                    </div>
                                 </div>
 
                                 <div class="table-responsive">
@@ -188,6 +223,7 @@ while ($row = mysqli_fetch_assoc($links)) {
                                             <tr>
                                                 <th>#</th>
                                                 <th>Lote</th>
+                                                <th>Tipo</th>
                                                 <th>Creado por</th>
                                                 <th>Fecha</th>
                                                 <th>Pendientes</th>
@@ -203,6 +239,13 @@ while ($row = mysqli_fetch_assoc($links)) {
                                                 <tr>
                                                     <td><?php echo (int) $l["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($l["label"]); ?></td>
+                                                    <td>
+                                                        <?php if (($l["mode"] ?? "validacion") === "recoleccion"): ?>
+                                                            <span class="badge bg-info-subtle text-info">Recoleccion</span>
+                                                        <?php else: ?>
+                                                            <span class="badge bg-secondary-subtle text-secondary">Validacion</span>
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?php echo htmlspecialchars($l["created_by_name"] ?? "—"); ?></td>
                                                     <td><?php echo htmlspecialchars(date("d/m/Y H:i", strtotime($l["created_at"]))); ?></td>
                                                     <td><span class="badge bg-warning"><?php echo (int) $l["total_pendiente"]; ?></span></td>
@@ -249,6 +292,29 @@ while ($row = mysqli_fetch_assoc($links)) {
 
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="collectionModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <form method="post" class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Nuevo enlace de recoleccion</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" name="action" value="create_collection">
+                                <p class="text-muted">Genera un enlace para que los encargados (CEO) ingresen los contactos desde cero. Luego pasaran por revision interna antes de importarse a Clientes.</p>
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre del lote</label>
+                                    <input type="text" name="label" class="form-control" placeholder="Ej: Contactos CEO Region Costa 2026" required>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-success">Crear enlace</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 

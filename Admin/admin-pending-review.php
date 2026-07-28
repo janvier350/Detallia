@@ -36,6 +36,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
     $markStmt = mysqli_prepare($link, "UPDATE pending_clients SET imported = 1 WHERE id = ?");
 
     while ($row = mysqli_fetch_assoc($rows)) {
+        // Preservar la persona de contacto (contacto_interno) dentro de las notas del cliente.
+        $notes = $row["notes"] ?? "";
+        if (!empty($row["contacto_interno"])) {
+            $notes = trim(($notes !== "" ? $notes . " | " : "") . "Contacto: " . $row["contacto_interno"]);
+        }
         mysqli_stmt_bind_param(
             $insertStmt,
             "sssssii",
@@ -43,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
             $row["contact_name"],
             $row["address"],
             $row["ciudad"],
-            $row["notes"],
+            $notes,
             $row["brand_id"],
             $row["classification_id"]
         );

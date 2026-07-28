@@ -24,6 +24,31 @@ if (!$batch) {
 }
 
 // ---------------------------------------------------------------
+// Revision interna: aprobar / rechazar un contacto pendiente
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["approve_one", "reject_one"], true)) {
+    $pendingId = (int) ($_POST["pending_id"] ?? 0);
+    $newStatus = $_POST["action"] === "approve_one" ? "confirmado" : "rechazado";
+    if ($pendingId > 0) {
+        $upd = mysqli_prepare($link, "UPDATE pending_clients SET status = ? WHERE id = ? AND link_id = ? AND imported = 0");
+        mysqli_stmt_bind_param($upd, "sii", $newStatus, $pendingId, $link_id);
+        mysqli_stmt_execute($upd);
+        $success_msg = $newStatus === "confirmado" ? "Contacto aprobado." : "Contacto rechazado.";
+    }
+}
+
+// ---------------------------------------------------------------
+// Revision interna: aprobar todos los pendientes de una vez
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "approve_all") {
+    $upd = mysqli_prepare($link, "UPDATE pending_clients SET status = 'confirmado' WHERE link_id = ? AND status = 'pendiente' AND imported = 0");
+    mysqli_stmt_bind_param($upd, "i", $link_id);
+    mysqli_stmt_execute($upd);
+    $affected = mysqli_stmt_affected_rows($upd);
+    $success_msg = $affected . " contacto(s) aprobado(s).";
+}
+
+// ---------------------------------------------------------------
 // Importar confirmados a Clientes
 // ---------------------------------------------------------------
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "import_confirmed") {
@@ -80,6 +105,10 @@ $pending = mysqli_query($link, "SELECT pc.*, b.name AS brand_name, cl.name AS cl
 $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
     "SELECT COUNT(*) AS c FROM pending_clients WHERE link_id = " . (int) $link_id . " AND status = 'confirmado' AND imported = 0"
 ))["c"];
+
+$stillPending = (int) mysqli_fetch_assoc(mysqli_query($link,
+    "SELECT COUNT(*) AS c FROM pending_clients WHERE link_id = " . (int) $link_id . " AND status = 'pendiente'"
+))["c"];
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -115,6 +144,13 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                         </div>
                     </div>
                 </div>
+
+                <?php if ($success_msg): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($success_msg); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($importSummary): ?>
                     <div class="alert alert-success">
@@ -171,6 +207,16 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Contactos del lote</h5>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                    <?php if ($stillPending > 0): ?>
+                                        <form method="post" onsubmit="return confirm('¿Aprobar los <?php echo $stillPending; ?> contactos pendientes?');">
+                                            <input type="hidden" name="action" value="approve_all">
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="mdi mdi-check-all me-1"></i>
+                                                Aprobar <?php echo $stillPending; ?> pendientes
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                     <?php if ($confirmedPendingImport > 0): ?>
                                         <form method="post" onsubmit="return confirm('¿Importar <?php echo $confirmedPendingImport; ?> contactos confirmados a Clientes?');">
                                             <input type="hidden" name="action" value="import_confirmed">
@@ -180,6 +226,7 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                             </button>
                                         </form>
                                     <?php endif; ?>
+                                    </div>
                                 </div>
 
                                 <div class="table-responsive">
@@ -201,6 +248,7 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                 <th>Estado</th>
                                                 <th>Validado por</th>
                                                 <th>Fecha validacion</th>
+                                                <th class="text-end">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -229,6 +277,25 @@ $confirmedPendingImport = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                     </td>
                                                     <td><?php echo htmlspecialchars($p["validated_by_email"] ?? "—"); ?></td>
                                                     <td><?php echo $p["validated_at"] ? htmlspecialchars(date("d/m/Y H:i", strtotime($p["validated_at"]))) : "—"; ?></td>
+                                                    <td class="text-end text-nowrap">
+                                                        <?php if (!$p["imported"] && $p["status"] !== "confirmado"): ?>
+                                                            <form method="post" class="d-inline">
+                                                                <input type="hidden" name="action" value="approve_one">
+                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-success" title="Aprobar"><i class="mdi mdi-check-bold"></i></button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                        <?php if (!$p["imported"] && $p["status"] !== "rechazado"): ?>
+                                                            <form method="post" class="d-inline">
+                                                                <input type="hidden" name="action" value="reject_one">
+                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-danger" title="Rechazar"><i class="mdi mdi-close"></i></button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                        <?php if ($p["imported"]): ?>
+                                                            <span class="text-muted small">—</span>
+                                                        <?php endif; ?>
+                                                    </td>
                                                 </tr>
                                             <?php endwhile; ?>
                                         </tbody>

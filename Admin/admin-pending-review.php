@@ -233,6 +233,7 @@ $stillPending = (int) mysqli_fetch_assoc(mysqli_query($link,
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
+                                                <th>Acciones</th>
                                                 <th>Nombre</th>
                                                 <th>Empresa/Grupo</th>
                                                 <th>Oficina</th>
@@ -248,12 +249,30 @@ $stillPending = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                 <th>Estado</th>
                                                 <th>Validado por</th>
                                                 <th>Fecha validacion</th>
-                                                <th class="text-end">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php while ($p = mysqli_fetch_assoc($pending)): ?>
                                                 <tr>
+                                                    <td class="text-nowrap">
+                                                        <?php if (!$p["imported"] && $p["status"] !== "confirmado"): ?>
+                                                            <form method="post" class="d-inline">
+                                                                <input type="hidden" name="action" value="approve_one">
+                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-success" title="Aprobar"><i class="mdi mdi-check-bold"></i></button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                        <?php if (!$p["imported"] && $p["status"] !== "rechazado"): ?>
+                                                            <form method="post" class="d-inline">
+                                                                <input type="hidden" name="action" value="reject_one">
+                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-soft-danger" title="Rechazar"><i class="mdi mdi-close"></i></button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                        <?php if ($p["imported"]): ?>
+                                                            <span class="text-muted small">—</span>
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?php echo htmlspecialchars($p["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($p["contact_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($p["oficina"] ?? ""); ?></td>
@@ -277,25 +296,6 @@ $stillPending = (int) mysqli_fetch_assoc(mysqli_query($link,
                                                     </td>
                                                     <td><?php echo htmlspecialchars($p["validated_by_email"] ?? "—"); ?></td>
                                                     <td><?php echo $p["validated_at"] ? htmlspecialchars(date("d/m/Y H:i", strtotime($p["validated_at"]))) : "—"; ?></td>
-                                                    <td class="text-end text-nowrap">
-                                                        <?php if (!$p["imported"] && $p["status"] !== "confirmado"): ?>
-                                                            <form method="post" class="d-inline">
-                                                                <input type="hidden" name="action" value="approve_one">
-                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-soft-success" title="Aprobar"><i class="mdi mdi-check-bold"></i></button>
-                                                            </form>
-                                                        <?php endif; ?>
-                                                        <?php if (!$p["imported"] && $p["status"] !== "rechazado"): ?>
-                                                            <form method="post" class="d-inline">
-                                                                <input type="hidden" name="action" value="reject_one">
-                                                                <input type="hidden" name="pending_id" value="<?php echo (int) $p['id']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-soft-danger" title="Rechazar"><i class="mdi mdi-close"></i></button>
-                                                            </form>
-                                                        <?php endif; ?>
-                                                        <?php if ($p["imported"]): ?>
-                                                            <span class="text-muted small">—</span>
-                                                        <?php endif; ?>
-                                                    </td>
                                                 </tr>
                                             <?php endwhile; ?>
                                         </tbody>

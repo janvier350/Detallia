@@ -116,6 +116,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "rever
     }
 }
 
+// ---------------------------------------------------------------
+// Guardar cambios (nombre / contacto interno / demas campos) sin cambiar el estado
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "update" && $verifiedEmail && $batch["active"]) {
+    $pendingId = (int) ($_POST["pending_id"] ?? 0);
+    $name      = trim($_POST["name"] ?? "");
+    $contactoInterno = trim($_POST["contacto_interno"] ?? "");
+    $ciudad    = trim($_POST["ciudad"] ?? "");
+    $address   = trim($_POST["address"] ?? "");
+    $notes     = trim($_POST["notes"] ?? "");
+    $brandId   = (int) ($_POST["brand_id"] ?? 0);
+    $brandId   = $brandId > 0 ? $brandId : null;
+    $classId   = (int) ($_POST["classification_id"] ?? 0);
+    $classId   = $classId > 0 ? $classId : null;
+
+    if ($pendingId > 0 && $name !== "") {
+        $upd = mysqli_prepare($link, "UPDATE pending_clients
+                                       SET name=?, contacto_interno=?, ciudad=?, address=?, notes=?, brand_id=?, classification_id=?
+                                       WHERE id=? AND link_id=? AND imported=0");
+        mysqli_stmt_bind_param($upd, "sssssiiii", $name, $contactoInterno, $ciudad, $address, $notes, $brandId, $classId, $pendingId, $batch["id"]);
+        mysqli_stmt_execute($upd);
+        $info_msg = "Cambios guardados.";
+    }
+}
+
 if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["confirm", "reject"], true) && $verifiedEmail && $batch["active"]) {
     $pendingId = (int) ($_POST["pending_id"] ?? 0);
     $name      = trim($_POST["name"] ?? "");
@@ -433,10 +458,13 @@ if ($verifiedEmail) {
                                                 <?php $rowFormId = "rowform" . (int) $p['id']; ?>
                                                 <tr>
                                                     <td class="text-nowrap">
-                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="confirm" class="btn btn-success btn-sm">
+                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="confirm" class="btn btn-success btn-sm" title="Aprobar">
                                                             <i class="mdi mdi-check-bold"></i>
                                                         </button>
-                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="reject" class="btn btn-outline-danger btn-sm">
+                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="update" class="btn btn-outline-primary btn-sm" title="Solo guardar cambios">
+                                                            <i class="mdi mdi-content-save-outline"></i>
+                                                        </button>
+                                                        <button type="submit" form="<?php echo $rowFormId; ?>" name="action" value="reject" class="btn btn-outline-danger btn-sm" title="Rechazar">
                                                             <i class="mdi mdi-close"></i>
                                                         </button>
                                                     </td>

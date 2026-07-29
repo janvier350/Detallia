@@ -227,7 +227,12 @@ if ($verifiedEmail) {
         mysqli_stmt_execute($stmtOwn);
         $ownContacts = mysqli_stmt_get_result($stmtOwn);
     } else {
-        $pending = mysqli_query($link, "SELECT * FROM pending_clients WHERE link_id = " . (int) $batch["id"] . " ORDER BY status = 'pendiente' DESC, name ASC");
+        $pending = mysqli_query($link, "SELECT pc.*, b.name AS brand_name, cl.name AS classification_name
+                                         FROM pending_clients pc
+                                         LEFT JOIN brands b ON b.id = pc.brand_id
+                                         LEFT JOIN client_classifications cl ON cl.id = pc.classification_id
+                                         WHERE pc.link_id = " . (int) $batch["id"] . "
+                                         ORDER BY pc.status = 'pendiente' DESC, pc.name ASC");
     }
 }
 ?>
@@ -590,7 +595,7 @@ if ($verifiedEmail) {
                             <div class="table-responsive">
                                 <table class="table table-sm" id="reviewedTable">
                                     <thead>
-                                        <tr><th>Nombre</th><th>Empresa/Grupo</th><th>Contacto interno</th><th>Estado</th><th>Validado por</th><th>Acciones</th></tr>
+                                        <tr><th>Nombre</th><th>Empresa/Grupo</th><th>Oficina</th><th>Contacto interno</th><th>Notas</th><th>Marca</th><th>Clasificacion</th><th>Estado</th><th>Validado por</th><th>Acciones</th></tr>
                                     </thead>
                                     <tbody>
                                         <?php mysqli_data_seek($pending, 0); while ($p = mysqli_fetch_assoc($pending)): ?>
@@ -598,7 +603,11 @@ if ($verifiedEmail) {
                                             <tr>
                                                 <td><?php echo htmlspecialchars($p["name"]); ?></td>
                                                 <td><?php echo htmlspecialchars($p["contact_name"] ?? ""); ?></td>
+                                                <td><?php echo htmlspecialchars($p["oficina"] ?? ""); ?></td>
                                                 <td><?php echo htmlspecialchars($p["contacto_interno"] ?? ""); ?></td>
+                                                <td><?php echo htmlspecialchars($p["notes"] ?? ""); ?></td>
+                                                <td><?php echo htmlspecialchars($p["brand_name"] ?? "—"); ?></td>
+                                                <td><?php echo htmlspecialchars($p["classification_name"] ?? "—"); ?></td>
                                                 <td>
                                                     <span class="badge bg-<?php echo $p["status"] === "confirmado" ? "success" : "danger"; ?>">
                                                         <?php echo ucfirst($p["status"]); ?>

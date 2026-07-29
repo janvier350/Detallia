@@ -119,6 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "rever
 if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["confirm", "reject"], true) && $verifiedEmail && $batch["active"]) {
     $pendingId = (int) ($_POST["pending_id"] ?? 0);
     $name      = trim($_POST["name"] ?? "");
+    $contactoInterno = trim($_POST["contacto_interno"] ?? "");
     $ciudad    = trim($_POST["ciudad"] ?? "");
     $address   = trim($_POST["address"] ?? "");
     $notes     = trim($_POST["notes"] ?? "");
@@ -130,9 +131,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && in_array($_POST["action"] ?? "", ["
 
     if ($pendingId > 0 && $name !== "") {
         $upd = mysqli_prepare($link, "UPDATE pending_clients
-                                       SET name=?, ciudad=?, address=?, notes=?, brand_id=?, classification_id=?, status=?, validated_by_email=?, validated_at=NOW()
+                                       SET name=?, contacto_interno=?, ciudad=?, address=?, notes=?, brand_id=?, classification_id=?, status=?, validated_by_email=?, validated_at=NOW()
                                        WHERE id=? AND link_id=?");
-        mysqli_stmt_bind_param($upd, "ssssiissii", $name, $ciudad, $address, $notes, $brandId, $classId, $newStatus, $verifiedEmail, $pendingId, $batch["id"]);
+        mysqli_stmt_bind_param($upd, "sssssiissii", $name, $contactoInterno, $ciudad, $address, $notes, $brandId, $classId, $newStatus, $verifiedEmail, $pendingId, $batch["id"]);
         mysqli_stmt_execute($upd);
         $info_msg = "Contacto actualizado.";
     }
@@ -417,7 +418,6 @@ if ($verifiedEmail) {
                                                 <th style="min-width:110px">Oficina</th>
                                                 <th style="min-width:90px">Zona</th>
                                                 <th style="min-width:130px">Contacto interno</th>
-                                                <th style="min-width:90px">RUC/CI</th>
                                                 <th style="min-width:90px">Meses fact.</th>
                                                 <th style="min-width:180px">Detalle meses</th>
                                                 <th style="min-width:150px">Alerta</th>
@@ -448,8 +448,7 @@ if ($verifiedEmail) {
                                                     <td><input type="text" form="<?php echo $rowFormId; ?>" name="contact_name" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['contact_name'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['oficina'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['zona'] ?? ''); ?>" readonly></td>
-                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['contacto_interno'] ?? ''); ?>" readonly></td>
-                                                    <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['ruc_ci'] ?? ''); ?>" readonly></td>
+                                                    <td><input type="text" form="<?php echo $rowFormId; ?>" name="contacto_interno" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['contacto_interno'] ?? ''); ?>"></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['meses_fact'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['detalle_meses'] ?? ''); ?>" readonly></td>
                                                     <td><input type="text" class="form-control form-control-sm" value="<?php echo htmlspecialchars($p['alerta'] ?? ''); ?>" readonly></td>

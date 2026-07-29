@@ -169,7 +169,7 @@ $isCollection = ($batch["mode"] ?? "validacion") === "recoleccion";
 // ---------------------------------------------------------------
 // Modo recoleccion: el encargado agrega un contacto desde cero
 // ---------------------------------------------------------------
-if ($isCollection && $_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_contact" && $verifiedEmail && $batch["active"]) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_contact" && $verifiedEmail && $batch["active"]) {
     $name            = trim($_POST["name"] ?? "");
     $contact_name    = trim($_POST["contact_name"] ?? "");
     $contacto_interno = trim($_POST["contacto_interno"] ?? "");
@@ -295,10 +295,77 @@ if ($verifiedEmail) {
                                     <h5 class="mb-0">Lote: <?php echo htmlspecialchars($batch["label"]); ?></h5>
                                     <p class="text-muted mb-0">Validando como: <?php echo htmlspecialchars($verifiedEmail); ?></p>
                                 </div>
+                                <?php if (!$isCollection): ?>
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                                        <i class="mdi mdi-account-plus-outline me-1"></i> Agregar contacto
+                                    </button>
+                                <?php endif; ?>
                             </div>
 
                             <?php if ($info_msg): ?><div class="alert alert-success"><?php echo htmlspecialchars($info_msg); ?></div><?php endif; ?>
                             <?php if ($error_msg): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error_msg); ?></div><?php endif; ?>
+
+                            <?php if (!$isCollection): ?>
+                                <!-- Modal: agregar un contacto nuevo a la lista de validacion -->
+                                <div class="modal fade" id="addContactModal" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <form method="post" class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title"><i class="mdi mdi-account-plus-outline me-1"></i> Agregar un contacto</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <input type="hidden" name="action" value="add_contact">
+                                                <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
+                                                <div class="row g-3">
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Razon social <span class="text-danger">*</span></label>
+                                                        <input type="text" name="name" class="form-control" required>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Nombre de quien recibe</label>
+                                                        <input type="text" name="contact_name" class="form-control">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Contacto (persona)</label>
+                                                        <input type="text" name="contacto_interno" class="form-control" placeholder="Nombre de la persona de contacto">
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Categoria de cliente <span class="text-danger">*</span></label>
+                                                        <select name="classification_id" class="form-select" required>
+                                                            <option value="">Selecciona...</option>
+                                                            <?php mysqli_data_seek($classRes, 0); while ($c = mysqli_fetch_assoc($classRes)): ?>
+                                                                <option value="<?php echo (int) $c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
+                                                            <?php endwhile; ?>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Marca <span class="text-danger">*</span></label>
+                                                        <select name="brand_id" class="form-select" required>
+                                                            <option value="">Selecciona...</option>
+                                                            <?php mysqli_data_seek($brandsRes, 0); while ($b = mysqli_fetch_assoc($brandsRes)): ?>
+                                                                <option value="<?php echo (int) $b['id']; ?>"><?php echo htmlspecialchars($b['name']); ?></option>
+                                                            <?php endwhile; ?>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">Ciudad</label>
+                                                        <input type="text" name="ciudad" class="form-control">
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label class="form-label">Direccion</label>
+                                                        <input type="text" name="address" class="form-control">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                                                <button type="submit" class="btn btn-primary"><i class="mdi mdi-content-save-outline me-1"></i> Agregar contacto</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
 
                             <?php if ($isCollection): ?>
                                 <!-- ============ MODO RECOLECCION ============ -->

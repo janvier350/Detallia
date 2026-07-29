@@ -581,16 +581,24 @@ if ($verifiedEmail) {
 
                             <hr>
                             <h6 class="text-muted">Ya revisados</h6>
+                            <div class="mb-3" style="max-width:420px;">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="mdi mdi-magnify"></i></span>
+                                    <input type="text" id="reviewedSearch" class="form-control" placeholder="Buscar en revisados (nombre, empresa, contacto...)">
+                                </div>
+                            </div>
                             <div class="table-responsive">
-                                <table class="table table-sm">
+                                <table class="table table-sm" id="reviewedTable">
                                     <thead>
-                                        <tr><th>Nombre</th><th>Estado</th><th>Validado por</th><th>Acciones</th></tr>
+                                        <tr><th>Nombre</th><th>Empresa/Grupo</th><th>Contacto interno</th><th>Estado</th><th>Validado por</th><th>Acciones</th></tr>
                                     </thead>
                                     <tbody>
                                         <?php mysqli_data_seek($pending, 0); while ($p = mysqli_fetch_assoc($pending)): ?>
                                             <?php if ($p["status"] === "pendiente") continue; ?>
                                             <tr>
                                                 <td><?php echo htmlspecialchars($p["name"]); ?></td>
+                                                <td><?php echo htmlspecialchars($p["contact_name"] ?? ""); ?></td>
+                                                <td><?php echo htmlspecialchars($p["contacto_interno"] ?? ""); ?></td>
                                                 <td>
                                                     <span class="badge bg-<?php echo $p["status"] === "confirmado" ? "success" : "danger"; ?>">
                                                         <?php echo ucfirst($p["status"]); ?>
@@ -679,6 +687,25 @@ if ($verifiedEmail) {
         if (saved) { search.value = saved; }
     } catch (e) {}
     applyFilter();
+})();
+
+// Buscador de la tabla "Ya revisados"
+(function () {
+    var search = document.getElementById('reviewedSearch');
+    var table = document.getElementById('reviewedTable');
+    if (!search || !table) return;
+
+    var rows = table.querySelectorAll('tbody tr');
+    rows.forEach(function (row) {
+        row.dataset.search = (row.innerText || row.textContent || '').toLowerCase();
+    });
+
+    search.addEventListener('input', function () {
+        var q = this.value.trim().toLowerCase();
+        rows.forEach(function (row) {
+            row.style.display = (q === '' || row.dataset.search.indexOf(q) !== -1) ? '' : 'none';
+        });
+    });
 })();
 </script>
 

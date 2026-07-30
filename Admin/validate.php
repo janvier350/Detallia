@@ -324,15 +324,15 @@ if ($verifiedEmail) {
                                                 <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
                                                 <div class="row g-3">
                                                     <div class="col-md-6">
-                                                        <label class="form-label">Razon social <span class="text-danger">*</span></label>
+                                                        <label class="form-label">Nombre <span class="text-danger">*</span></label>
                                                         <input type="text" name="name" class="form-control" required>
                                                     </div>
                                                     <div class="col-md-6">
-                                                        <label class="form-label">Nombre de quien recibe</label>
+                                                        <label class="form-label">Empresa / Grupo</label>
                                                         <input type="text" name="contact_name" class="form-control">
                                                     </div>
                                                     <div class="col-md-6">
-                                                        <label class="form-label">Contacto (persona)</label>
+                                                        <label class="form-label">Contacto interno</label>
                                                         <input type="text" name="contacto_interno" class="form-control" placeholder="Nombre de la persona de contacto">
                                                     </div>
                                                     <div class="col-md-6">

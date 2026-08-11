@@ -11,12 +11,31 @@ require_role([1, 2, 3, 5]);
 $palette = ['#556ee6', '#34c38f', '#f1b44c', '#f46a6a', '#50a5f1', '#6f42c1', '#e83e8c', '#2ab57d', '#fd7e14', '#00b8d4'];
 
 // ---------------------------------------------------------------
+// Filtros (marca / clasificacion / ciudad) — se aplican a todo el tablero
+// ---------------------------------------------------------------
+$fBrand  = (int) ($_GET["brand_id"] ?? 0);
+$fClass  = (int) ($_GET["classification_id"] ?? 0);
+$fCiudad = trim($_GET["ciudad"] ?? "");
+
+$conds = [];
+if ($fBrand > 0)     { $conds[] = "c.brand_id = " . $fBrand; }
+if ($fClass > 0)     { $conds[] = "c.classification_id = " . $fClass; }
+if ($fCiudad !== "") { $conds[] = "c.ciudad = '" . mysqli_real_escape_string($link, $fCiudad) . "'"; }
+$whereC   = !empty($conds) ? (" WHERE " . implode(" AND ", $conds)) : "";
+$hasFilters = !empty($conds);
+
+// Opciones de los selectores
+$brandsOpt = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
+$classOpt  = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY name");
+$ciudadOpt = mysqli_query($link, "SELECT DISTINCT ciudad FROM clients WHERE ciudad IS NOT NULL AND ciudad <> '' ORDER BY ciudad");
+
+// ---------------------------------------------------------------
 // KPIs
 // ---------------------------------------------------------------
-$totalClients   = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) c FROM clients"))["c"];
-$activeClients  = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) c FROM clients WHERE status='activo'"))["c"];
-$totalCiudades  = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(DISTINCT NULLIF(TRIM(ciudad),'')) c FROM clients"))["c"];
-$totalMarcas    = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(DISTINCT brand_id) c FROM clients WHERE brand_id IS NOT NULL"))["c"];
+$totalClients   = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) cnt FROM clients c$whereC"))["cnt"];
+$activeClients  = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(*) cnt FROM clients c" . ($whereC ? $whereC . " AND c.status='activo'" : " WHERE c.status='activo'")))["cnt"];
+$totalCiudades  = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(DISTINCT NULLIF(TRIM(c.ciudad),'')) cnt FROM clients c$whereC"))["cnt"];
+$totalMarcas    = (int) mysqli_fetch_assoc(mysqli_query($link, "SELECT COUNT(DISTINCT c.brand_id) cnt FROM clients c" . ($whereC ? $whereC . " AND c.brand_id IS NOT NULL" : " WHERE c.brand_id IS NOT NULL")))["cnt"];
 
 // ---------------------------------------------------------------
 // Por clasificacion
@@ -26,6 +45,7 @@ $classData   = [];
 $res = mysqli_query($link, "SELECT COALESCE(cl.name,'(Sin clasificacion)') AS g, COUNT(c.id) AS total
                             FROM clients c
                             LEFT JOIN client_classifications cl ON cl.id = c.classification_id
+                            $whereC
                             GROUP BY g ORDER BY total DESC");
 while ($r = mysqli_fetch_assoc($res)) { $classLabels[] = $r["g"]; $classData[] = (int) $r["total"]; }
 
@@ -34,8 +54,8 @@ while ($r = mysqli_fetch_assoc($res)) { $classLabels[] = $r["g"]; $classData[] =
 // ---------------------------------------------------------------
 $cityLabels = [];
 $cityData   = [];
-$res = mysqli_query($link, "SELECT COALESCE(NULLIF(TRIM(ciudad),''),'(Sin ciudad)') AS g, COUNT(*) AS total
-                            FROM clients GROUP BY g ORDER BY total DESC LIMIT 10");
+$res = mysqli_query($link, "SELECT COALESCE(NULLIF(TRIM(c.ciudad),''),'(Sin ciudad)') AS g, COUNT(*) AS total
+                            FROM clients c $whereC GROUP BY g ORDER BY total DESC LIMIT 10");
 while ($r = mysqli_fetch_assoc($res)) { $cityLabels[] = $r["g"]; $cityData[] = (int) $r["total"]; }
 
 // ---------------------------------------------------------------
@@ -46,6 +66,7 @@ $brandData   = [];
 $res = mysqli_query($link, "SELECT COALESCE(b.name,'(Sin marca)') AS g, COUNT(c.id) AS total
                             FROM clients c
                             LEFT JOIN brands b ON b.id = c.brand_id
+                            $whereC
                             GROUP BY g ORDER BY total DESC");
 while ($r = mysqli_fetch_assoc($res)) { $brandLabels[] = $r["g"]; $brandData[] = (int) $r["total"]; }
 
@@ -60,6 +81,7 @@ $res = mysqli_query($link, "SELECT COALESCE(cl.name,'(Sin clasificacion)') AS cl
                             FROM clients c
                             LEFT JOIN client_classifications cl ON cl.id = c.classification_id
                             LEFT JOIN brands b ON b.id = c.brand_id
+                            $whereC
                             GROUP BY cls, brd");
 while ($r = mysqli_fetch_assoc($res)) {
     $pivot[$r["cls"]][$r["brd"]] = (int) $r["total"];
@@ -113,6 +135,50 @@ foreach ($brandOrder as $brd) {
                                     <li class="breadcrumb-item"><a href="admin-clients-list.php">Clientes</a></li>
                                     <li class="breadcrumb-item active">Dashboard</li>
                                 </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body py-3">
+                                <form method="get" class="row g-2 align-items-end">
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Marca</label>
+                                        <select name="brand_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las marcas</option>
+                                            <?php while ($b = mysqli_fetch_assoc($brandsOpt)): ?>
+                                                <option value="<?php echo (int) $b['id']; ?>" <?php echo $fBrand === (int) $b['id'] ? "selected" : ""; ?>><?php echo htmlspecialchars($b['name']); ?></option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Clasificacion</label>
+                                        <select name="classification_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las clasificaciones</option>
+                                            <?php while ($cf = mysqli_fetch_assoc($classOpt)): ?>
+                                                <option value="<?php echo (int) $cf['id']; ?>" <?php echo $fClass === (int) $cf['id'] ? "selected" : ""; ?>><?php echo htmlspecialchars($cf['name']); ?></option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Ciudad</label>
+                                        <select name="ciudad" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las ciudades</option>
+                                            <?php while ($ci = mysqli_fetch_row($ciudadOpt)): ?>
+                                                <option value="<?php echo htmlspecialchars($ci[0]); ?>" <?php echo $fCiudad === $ci[0] ? "selected" : ""; ?>><?php echo htmlspecialchars($ci[0]); ?></option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    <?php if ($hasFilters): ?>
+                                        <div class="col-auto">
+                                            <a href="admin-clients-dashboard.php" class="btn btn-light"><i class="mdi mdi-close me-1"></i>Limpiar</a>
+                                        </div>
+                                    <?php endif; ?>
+                                </form>
                             </div>
                         </div>
                     </div>

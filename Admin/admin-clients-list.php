@@ -78,6 +78,9 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // Filtro por provincia
 // ---------------------------------------------------------------
 $filter_provincia = trim($_GET["provincia"] ?? "");
+$filter_ciudad    = trim($_GET["ciudad"] ?? "");
+$filter_brand     = (int) ($_GET["brand_id"] ?? 0);
+$filter_class     = (int) ($_GET["classification_id"] ?? 0);
 
 $clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address, c.ciudad, c.provincia, c.status,
                       c.brand_id, c.classification_id, b.name AS brand_name, cl.name AS classification_name
@@ -85,15 +88,38 @@ $clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address,
                LEFT JOIN brands b ON b.id = c.brand_id
                LEFT JOIN client_classifications cl ON cl.id = c.classification_id";
 
-if ($filter_provincia !== "") {
-    $clientsSql .= " WHERE c.provincia = ?";
-    $stmt_c = mysqli_prepare($link, $clientsSql . " ORDER BY c.name ASC");
-    mysqli_stmt_bind_param($stmt_c, "s", $filter_provincia);
-    mysqli_stmt_execute($stmt_c);
-    $clients = mysqli_stmt_get_result($stmt_c);
-} else {
-    $clients = mysqli_query($link, $clientsSql . " ORDER BY c.name ASC");
+$conds  = [];
+$params = [];
+$types  = "";
+if ($filter_provincia !== "") { $conds[] = "c.provincia = ?";       $params[] = $filter_provincia; $types .= "s"; }
+if ($filter_ciudad !== "")    { $conds[] = "c.ciudad = ?";          $params[] = $filter_ciudad;    $types .= "s"; }
+if ($filter_brand > 0)        { $conds[] = "c.brand_id = ?";        $params[] = $filter_brand;     $types .= "i"; }
+if ($filter_class > 0)        { $conds[] = "c.classification_id = ?"; $params[] = $filter_class;   $types .= "i"; }
+
+if (!empty($conds)) {
+    $clientsSql .= " WHERE " . implode(" AND ", $conds);
 }
+$stmt_c = mysqli_prepare($link, $clientsSql . " ORDER BY c.name ASC");
+if (!empty($params)) {
+    mysqli_stmt_bind_param($stmt_c, $types, ...$params);
+}
+mysqli_stmt_execute($stmt_c);
+$clients = mysqli_stmt_get_result($stmt_c);
+
+$has_filters = ($filter_provincia !== "" || $filter_ciudad !== "" || $filter_brand > 0 || $filter_class > 0);
+
+// Opciones para los selectores de filtro
+$ciudades_res = mysqli_query($link, "SELECT DISTINCT ciudad FROM clients WHERE ciudad IS NOT NULL AND ciudad <> '' ORDER BY ciudad");
+$ciudades = [];
+while ($cc = mysqli_fetch_row($ciudades_res)) { $ciudades[] = $cc[0]; }
+
+$brands_filter_res = mysqli_query($link, "SELECT id, name FROM brands ORDER BY name");
+$brands_filter = [];
+while ($bb = mysqli_fetch_assoc($brands_filter_res)) { $brands_filter[] = $bb; }
+
+$class_filter_res = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY name");
+$class_filter = [];
+while ($ccl = mysqli_fetch_assoc($class_filter_res)) { $class_filter[] = $ccl; }
 
 $provincias_res = mysqli_query($link, "SELECT DISTINCT provincia FROM clients WHERE provincia IS NOT NULL AND provincia <> '' ORDER BY provincia");
 $provincias = [];
@@ -175,11 +201,45 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                     </div>
                                 </div>
 
-                                <?php if (!empty($provincias)): ?>
-                                <form method="get" class="row g-2 mb-3">
-                                    <div class="col-auto">
+                                <form method="get" class="row g-2 mb-3 align-items-end">
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Marca</label>
+                                        <select name="brand_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las marcas</option>
+                                            <?php foreach ($brands_filter as $bf): ?>
+                                                <option value="<?php echo (int) $bf['id']; ?>" <?php echo $filter_brand === (int) $bf['id'] ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($bf['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Clasificacion</label>
+                                        <select name="classification_id" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las clasificaciones</option>
+                                            <?php foreach ($class_filter as $cf): ?>
+                                                <option value="<?php echo (int) $cf['id']; ?>" <?php echo $filter_class === (int) $cf['id'] ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($cf['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small text-muted mb-1">Ciudad</label>
+                                        <select name="ciudad" class="form-select" onchange="this.form.submit()">
+                                            <option value="">Todas las ciudades</option>
+                                            <?php foreach ($ciudades as $ciu): ?>
+                                                <option value="<?php echo htmlspecialchars($ciu); ?>" <?php echo $filter_ciudad === $ciu ? "selected" : ""; ?>>
+                                                    <?php echo htmlspecialchars($ciu); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <?php if (!empty($provincias)): ?>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small text-muted mb-1">Provincia</label>
                                         <select name="provincia" class="form-select" onchange="this.form.submit()">
-                                            <option value="">Todas las provincias</option>
+                                            <option value="">Todas</option>
                                             <?php foreach ($provincias as $prov): ?>
                                                 <option value="<?php echo htmlspecialchars($prov); ?>" <?php echo $filter_provincia === $prov ? "selected" : ""; ?>>
                                                     <?php echo htmlspecialchars($prov); ?>
@@ -187,12 +247,15 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <?php if ($filter_provincia !== ""): ?>
+                                    <?php endif; ?>
+                                    <?php if ($has_filters): ?>
                                         <div class="col-auto">
-                                            <a href="admin-clients-list.php" class="btn btn-light">Limpiar filtro</a>
+                                            <a href="admin-clients-list.php" class="btn btn-light"><i class="mdi mdi-close me-1"></i>Limpiar</a>
                                         </div>
                                     <?php endif; ?>
                                 </form>
+                                <?php if ($has_filters): ?>
+                                    <p class="text-muted small mb-3"><?php echo mysqli_num_rows($clients); ?> cliente(s) con los filtros aplicados.</p>
                                 <?php endif; ?>
 
                                 <div class="table-responsive">

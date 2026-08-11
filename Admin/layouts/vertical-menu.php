@@ -340,6 +340,13 @@ $pendingRequestsCount = count($pendingRequests);
                     </a>
                 </li>
 
+                <li>
+                    <a href="admin-clients-dashboard.php">
+                        <i data-feather="pie-chart"></i>
+                        <span>Dashboard clientes</span>
+                    </a>
+                </li>
+
                 <?php if (in_array((int) ($_SESSION["role_id"] ?? 0), [1, 2], true)): ?>
                 <li>
                     <a href="admin-validation-links.php">

@@ -158,8 +158,11 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                             <div class="card-body">
                                 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                                     <h5 class="card-title mb-0">Listado de clientes</h5>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a href="admin-clients-dashboard.php" class="btn btn-soft-info waves-effect waves-light">
+                                            <i class="mdi mdi-chart-donut me-1"></i> Ver dashboard
+                                        </a>
                                     <?php if ($can_edit): ?>
-                                        <div class="d-flex gap-2">
                                             <?php if (in_array((int) $_SESSION["role_id"], [1, 2], true)): ?>
                                                 <a href="admin-clients-import.php" class="btn btn-soft-primary waves-effect waves-light">
                                                     <i class="mdi mdi-file-excel-outline me-1"></i> Importar desde Excel
@@ -168,8 +171,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                             <button type="button" class="btn btn-primary waves-effect waves-light" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="openCreateModal()">
                                                 <i class="mdi mdi-plus me-1"></i> Nuevo cliente
                                             </button>
-                                        </div>
                                     <?php endif; ?>
+                                    </div>
                                 </div>
 
                                 <?php if (!empty($provincias)): ?>

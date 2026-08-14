@@ -263,8 +263,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
-                                                <th>Empresa</th>
                                                 <th>Contacto</th>
+                                                <th>Empresa</th>
                                                 <th>Marca</th>
                                                 <th>Clasificacion</th>
                                                 <th>Telefono</th>
@@ -278,8 +278,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                             <?php while ($c = mysqli_fetch_assoc($clients)): ?>
                                                 <tr>
                                                     <td><?php echo (int) $c["id"]; ?></td>
-                                                    <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["name"]); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["brand_name"] ?? "—"); ?></td>
                                                     <td>
                                                         <?php if ($c["classification_name"]): ?>

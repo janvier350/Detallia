@@ -60,18 +60,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
                                           VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, 'activo', ?, ?)");
     $markStmt = mysqli_prepare($link, "UPDATE pending_clients SET imported = 1 WHERE id = ?");
 
-    // En los lotes de Excel (validacion), pending.name = persona y pending.contact_name = empresa/razon social,
-    // que es lo opuesto a como usa Clientes (name = empresa, contact_name = persona). Se intercambian aqui.
-    // En los lotes de recoleccion ya vienen con la convencion correcta (name = empresa).
-    $isValidacion = (($batch["mode"] ?? "validacion") === "validacion");
+    // Convencion de Clientes: name = persona (unica), contact_name = empresa.
+    // Lotes de Excel (validacion): pending.name = persona, pending.contact_name = empresa -> ya coincide.
+    // Lotes de recoleccion: pending.name = razon social (empresa), pending.contact_name = quien recibe (persona) -> se intercambia.
+    $isRecoleccion = (($batch["mode"] ?? "validacion") === "recoleccion");
 
     while ($row = mysqli_fetch_assoc($rows)) {
-        if ($isValidacion) {
-            $clientName    = $row["contact_name"]; // empresa / razon social -> columna Empresa
-            $clientContact = $row["name"];         // persona destinataria   -> columna Contacto
+        if ($isRecoleccion) {
+            $clientName    = $row["contact_name"]; // persona (quien recibe) -> name
+            $clientContact = $row["name"];         // empresa / razon social  -> contact_name
         } else {
-            $clientName    = $row["name"];
-            $clientContact = $row["contact_name"];
+            $clientName    = $row["name"];         // persona
+            $clientContact = $row["contact_name"]; // empresa
         }
         // Preservar la persona de contacto (contacto_interno) dentro de las notas del cliente.
         $notes = $row["notes"] ?? "";

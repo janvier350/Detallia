@@ -278,8 +278,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                             <?php while ($c = mysqli_fetch_assoc($clients)): ?>
                                                 <tr>
                                                     <td><?php echo (int) $c["id"]; ?></td>
-                                                    <td><?php echo htmlspecialchars($c["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($c["brand_name"] ?? "—"); ?></td>
                                                     <td>
                                                         <?php if ($c["classification_name"]): ?>
@@ -343,12 +343,12 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Nombre de la empresa <span class="text-danger">*</span></label>
-                        <input type="text" name="name" id="client_name" class="form-control" required>
+                        <label class="form-label">Empresa</label>
+                        <input type="text" name="contact_name" id="client_contact_name" class="form-control">
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Contacto (persona que recibe)</label>
-                        <input type="text" name="contact_name" id="client_contact_name" class="form-control">
+                        <label class="form-label">Contacto (persona que recibe) <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="client_name" class="form-control" required>
                     </div>
                 </div>
 

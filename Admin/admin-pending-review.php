@@ -14,7 +14,7 @@ if ($link_id <= 0) {
 $success_msg = "";
 $importSummary = null;
 
-$stmt = mysqli_prepare($link, "SELECT id, label, token, active, finished_at, finished_by FROM validation_links WHERE id = ?");
+$stmt = mysqli_prepare($link, "SELECT id, label, token, mode, active, finished_at, finished_by FROM validation_links WHERE id = ?");
 mysqli_stmt_bind_param($stmt, "i", $link_id);
 mysqli_stmt_execute($stmt);
 $batch = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -60,7 +60,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
                                           VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, 'activo', ?, ?)");
     $markStmt = mysqli_prepare($link, "UPDATE pending_clients SET imported = 1 WHERE id = ?");
 
+    // En los lotes de Excel (validacion), pending.name = persona y pending.contact_name = empresa/razon social,
+    // que es lo opuesto a como usa Clientes (name = empresa, contact_name = persona). Se intercambian aqui.
+    // En los lotes de recoleccion ya vienen con la convencion correcta (name = empresa).
+    $isValidacion = (($batch["mode"] ?? "validacion") === "validacion");
+
     while ($row = mysqli_fetch_assoc($rows)) {
+        if ($isValidacion) {
+            $clientName    = $row["contact_name"]; // empresa / razon social -> columna Empresa
+            $clientContact = $row["name"];         // persona destinataria   -> columna Contacto
+        } else {
+            $clientName    = $row["name"];
+            $clientContact = $row["contact_name"];
+        }
         // Preservar la persona de contacto (contacto_interno) dentro de las notas del cliente.
         $notes = $row["notes"] ?? "";
         if (!empty($row["contacto_interno"])) {
@@ -69,8 +81,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
         mysqli_stmt_bind_param(
             $insertStmt,
             "sssssii",
-            $row["name"],
-            $row["contact_name"],
+            $clientName,
+            $clientContact,
             $row["address"],
             $row["ciudad"],
             $notes,

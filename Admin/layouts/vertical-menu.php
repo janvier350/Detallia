@@ -364,6 +364,13 @@ $pendingRequestsCount = count($pendingRequests);
                 </li>
 
                 <li>
+                    <a href="admin-kit-sim-list.php">
+                        <i data-feather="dollar-sign"></i>
+                        <span>Simulador de kits</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="admin-deliveries-list.php">
                         <i data-feather="send"></i>
                         <span>Entregas</span>

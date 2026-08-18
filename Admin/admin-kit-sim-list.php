@@ -24,6 +24,40 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "delet
     }
 }
 
+// ---------------------------------------------------------------
+// Duplicar (copia cabecera + productos)
+// ---------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "duplicate") {
+    $id = (int) ($_POST["id"] ?? 0);
+    $src = null;
+    if ($id > 0) {
+        $stmt = mysqli_prepare($link, "SELECT * FROM kit_simulations WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $id);
+        mysqli_stmt_execute($stmt);
+        $src = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    }
+    if ($src) {
+        $newName   = mb_substr($src["name"] . " (copia)", 0, 150);
+        $today     = date("Y-m-d");
+        $classId   = $src["classification_id"] !== null ? (int) $src["classification_id"] : null;
+        $notes     = $src["notes"];
+        $createdBy = (int) $_SESSION["id"];
+        $ins = mysqli_prepare($link, "INSERT INTO kit_simulations (name, sim_date, classification_id, notes, created_by) VALUES (?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($ins, "ssisi", $newName, $today, $classId, $notes, $createdBy);
+        mysqli_stmt_execute($ins);
+        $newId = mysqli_insert_id($link);
+
+        // Copiar items
+        mysqli_query($link, "INSERT INTO kit_simulation_items (simulation_id, product_name, unit_price, iva_rate, quantity, sort_order)
+                             SELECT " . (int) $newId . ", product_name, unit_price, iva_rate, quantity, sort_order
+                             FROM kit_simulation_items WHERE simulation_id = " . (int) $id);
+
+        $_SESSION["flash_success"] = "Simulacro duplicado. Ajusta el tipo de cliente o los precios en la copia.";
+        header("location: admin-kit-sim-form.php?id=" . (int) $newId);
+        exit;
+    }
+}
+
 if (isset($_SESSION["flash_success"])) {
     $success_msg = $_SESSION["flash_success"];
     unset($_SESSION["flash_success"]);
@@ -92,7 +126,10 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                         <h5 class="card-title mb-1">Simulacros guardados</h5>
                                         <p class="text-muted mb-0 small">Compara el costo de un kit para distintos tipos de cliente.</p>
                                     </div>
-                                    <a href="admin-kit-sim-form.php" class="btn btn-primary"><i class="mdi mdi-plus me-1"></i> Nuevo simulacro</a>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" id="compareBtn" class="btn btn-soft-info" disabled><i class="mdi mdi-compare-horizontal me-1"></i> Comparar seleccionados (<span id="compareCount">0</span>)</button>
+                                        <a href="admin-kit-sim-form.php" class="btn btn-primary"><i class="mdi mdi-plus me-1"></i> Nuevo simulacro</a>
+                                    </div>
                                 </div>
 
                                 <?php if (empty($sims)): ?>
@@ -102,6 +139,7 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
+                                                <th style="width:34px"></th>
                                                 <th>#</th>
                                                 <th>Simulacro</th>
                                                 <th>Fecha</th>
@@ -116,6 +154,7 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                         <tbody>
                                             <?php foreach ($sims as $s): ?>
                                                 <tr>
+                                                    <td><input type="checkbox" class="form-check-input sim-check" value="<?php echo (int) $s['id']; ?>"></td>
                                                     <td><?php echo (int) $s["id"]; ?></td>
                                                     <td class="fw-medium"><?php echo htmlspecialchars($s["name"]); ?></td>
                                                     <td><?php echo htmlspecialchars(date("d/m/Y", strtotime($s["sim_date"]))); ?></td>
@@ -133,6 +172,11 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                                     <td class="text-end text-nowrap">
                                                         <a href="admin-kit-sim-print.php?id=<?php echo (int) $s['id']; ?>" target="_blank" class="btn btn-sm btn-soft-secondary" title="Imprimir / PDF"><i class="mdi mdi-printer"></i></a>
                                                         <a href="admin-kit-sim-form.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-soft-primary" title="Editar"><i class="mdi mdi-pencil"></i></a>
+                                                        <form method="post" class="d-inline">
+                                                            <input type="hidden" name="action" value="duplicate">
+                                                            <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-soft-success" title="Duplicar"><i class="mdi mdi-content-copy"></i></button>
+                                                        </form>
                                                         <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este simulacro?');">
                                                             <input type="hidden" name="action" value="delete">
                                                             <input type="hidden" name="id" value="<?php echo (int) $s['id']; ?>">
@@ -160,6 +204,33 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
 <?php include 'layouts/right-sidebar.php'; ?>
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+
+<script>
+(function () {
+    var checks = document.querySelectorAll('.sim-check');
+    var btn = document.getElementById('compareBtn');
+    var count = document.getElementById('compareCount');
+    if (!btn) return;
+
+    function selectedIds() {
+        return Array.prototype.filter.call(checks, function (c) { return c.checked; })
+                    .map(function (c) { return c.value; });
+    }
+    function update() {
+        var ids = selectedIds();
+        count.innerText = ids.length;
+        btn.disabled = ids.length < 2;
+    }
+    checks.forEach(function (c) { c.addEventListener('change', update); });
+    btn.addEventListener('click', function () {
+        var ids = selectedIds();
+        if (ids.length >= 2) {
+            window.location.href = 'admin-kit-sim-compare.php?ids=' + ids.join(',');
+        }
+    });
+    update();
+})();
+</script>
 
 </body>
 </html>

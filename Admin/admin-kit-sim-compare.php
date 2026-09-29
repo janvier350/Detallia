@@ -203,8 +203,9 @@ $maxTotal = !empty($totalsOnly) ? max($totalsOnly) : 0;
                     <?php endforeach; ?>
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-4 d-flex gap-2">
                     <a href="admin-kit-sim-list.php" class="btn btn-light"><i class="mdi mdi-arrow-left me-1"></i> Volver al listado</a>
+                    <a href="admin-kit-sim-compare-print.php?ids=<?php echo htmlspecialchars(implode(',', $ids)); ?>" target="_blank" class="btn btn-soft-secondary"><i class="mdi mdi-printer me-1"></i> Imprimir comparativa (PDF)</a>
                 </div>
 
             </div>

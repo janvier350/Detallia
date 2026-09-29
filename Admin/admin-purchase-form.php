@@ -20,14 +20,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $items_article  = $_POST["item_article_id"] ?? [];
     $items_qty      = $_POST["item_quantity"] ?? [];
     $items_price    = $_POST["item_unit_price"] ?? [];
+    $items_iva      = $_POST["item_iva_rate"] ?? [];
 
     $valid_items = [];
     foreach ($items_article as $idx => $aid) {
         $aid = (int) $aid;
         $qty = (float) ($items_qty[$idx] ?? 0);
         $price = (float) ($items_price[$idx] ?? 0);
+        $iva = isset($items_iva[$idx]) ? (float) $items_iva[$idx] : 15;
+        if ($iva < 0) $iva = 0;
         if ($aid > 0 && $qty > 0 && $price >= 0) {
-            $valid_items[] = ["article_id" => $aid, "quantity" => $qty, "unit_price" => $price];
+            $valid_items[] = ["article_id" => $aid, "quantity" => $qty, "unit_price" => $price, "iva_rate" => $iva];
         }
     }
 
@@ -38,7 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $total = 0;
         foreach ($valid_items as $it) {
-            $total += $it["quantity"] * $it["unit_price"];
+            $total += $it["quantity"] * $it["unit_price"] * (1 + $it["iva_rate"] / 100);
         }
 
         mysqli_begin_transaction($link);
@@ -67,9 +70,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $target_id = mysqli_insert_id($link);
             }
 
-            $itemStmt = mysqli_prepare($link, "INSERT INTO purchase_invoice_items (invoice_id, article_id, quantity, unit_price) VALUES (?, ?, ?, ?)");
+            $itemStmt = mysqli_prepare($link, "INSERT INTO purchase_invoice_items (invoice_id, article_id, quantity, unit_price, iva_rate) VALUES (?, ?, ?, ?, ?)");
             foreach ($valid_items as $it) {
-                mysqli_stmt_bind_param($itemStmt, "iidd", $target_id, $it["article_id"], $it["quantity"], $it["unit_price"]);
+                mysqli_stmt_bind_param($itemStmt, "iiddd", $target_id, $it["article_id"], $it["quantity"], $it["unit_price"], $it["iva_rate"]);
                 if (!mysqli_stmt_execute($itemStmt)) {
                     throw new Exception(mysqli_error($link));
                 }
@@ -129,7 +132,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($row) {
             $invoice = $row;
 
-            $itemsRes = mysqli_query($link, "SELECT pii.article_id, pii.quantity, pii.unit_price, a.name AS article_name
+            $itemsRes = mysqli_query($link, "SELECT pii.article_id, pii.quantity, pii.unit_price, pii.iva_rate, a.name AS article_name
                                               FROM purchase_invoice_items pii
                                               JOIN articles a ON a.id = pii.article_id
                                               WHERE pii.invoice_id = " . (int) $invoice_id);
@@ -176,7 +179,6 @@ while ($h = mysqli_fetch_assoc($histRes)) {
     <title><?php echo $invoice["id"] ? "Editar factura" : "Nueva factura"; ?> | Detallia</title>
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
-    <link href="assets/libs/choices.js/public/assets/styles/choices.min.css" rel="stylesheet" type="text/css" />
 
 </head>
 
@@ -256,20 +258,23 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                             <thead class="table-light">
                                                 <tr>
                                                     <th style="min-width:260px">Articulo</th>
-                                                    <th style="width:120px">Cantidad</th>
-                                                    <th style="width:150px">Precio unitario</th>
-                                                    <th style="width:130px">Subtotal</th>
-                                                    <th style="width:200px">Historico de precio</th>
+                                                    <th style="width:110px">Cantidad</th>
+                                                    <th style="width:130px">Precio unit.</th>
+                                                    <th style="width:100px">IVA %</th>
+                                                    <th style="width:120px" class="text-end">Subtotal</th>
+                                                    <th style="width:130px" class="text-end">Total c/IVA</th>
+                                                    <th style="width:180px">Historico de precio</th>
                                                     <th style="width:50px"></th>
                                                 </tr>
                                             </thead>
                                             <tbody id="itemsBody">
                                             </tbody>
                                             <tfoot>
-                                                <tr>
-                                                    <td colspan="3" class="text-end fw-bold">Total</td>
-                                                    <td class="fw-bold" id="grandTotal">0.00</td>
-                                                    <td colspan="2"></td>
+                                                <tr class="table-light">
+                                                    <td colspan="4" class="text-end fw-bold">Totales</td>
+                                                    <td class="fw-bold text-end" id="grandSubtotal">0.00</td>
+                                                    <td class="fw-bold text-end" id="grandTotal">0.00</td>
+                                                    <td colspan="2" class="small text-muted">IVA total: <span id="grandIva">0.00</span></td>
                                                 </tr>
                                             </tfoot>
                                         </table>
@@ -299,10 +304,35 @@ while ($h = mysqli_fetch_assoc($histRes)) {
 <!-- Right Sidebar -->
 <?php include 'layouts/right-sidebar.php'; ?>
 
+<!-- Modal: seleccionar articulo -->
+<div class="modal fade" id="articleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="mdi mdi-package-variant-closed me-1"></i> Seleccionar articulo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" id="articleSearch" class="form-control" placeholder="Buscar por nombre, categoria o marca..." autocomplete="off">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Articulo</th><th>Categoria</th><th>Marca</th><th class="text-end">Elegir</th></tr>
+                        </thead>
+                        <tbody id="articleModalBody"><!-- filas por JS --></tbody>
+                    </table>
+                    <p class="text-muted text-center my-3 d-none" id="articleNoResults">Sin resultados.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JAVASCRIPT -->
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
-<script src="assets/libs/choices.js/public/assets/scripts/choices.min.js"></script>
 
 <script>
 var ARTICLES = <?php
@@ -321,102 +351,150 @@ var ARTICLES = <?php
 ?>;
 
 var PRICE_HISTORY = <?php echo json_encode($priceHistory, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-
 var EXISTING_ITEMS = <?php echo json_encode($invoice_items, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var DEFAULT_IVA = 15;
 
 var itemsBody = document.getElementById('itemsBody');
-var rowIndex = 0;
+var ARTICLE_MAP = {};
+ARTICLES.forEach(function (a) { ARTICLE_MAP[a.id] = a; });
 
-function buildArticleOptions(selectedId) {
-    var html = '<option value="">Selecciona...</option>';
-    ARTICLES.forEach(function (a) {
-        var sel = (selectedId && parseInt(selectedId) === a.id) ? 'selected' : '';
-        html += '<option value="' + a.id + '" ' + sel + '>' + a.name + ' (' + a.category_name + ' / ' + a.brand_name + ')</option>';
-    });
-    return html;
-}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 function buildHistoryHtml(articleId) {
     var hist = PRICE_HISTORY[articleId];
-    if (!hist || hist.length === 0) {
-        return '<small class="text-muted">Sin compras previas</small>';
-    }
+    if (!hist || hist.length === 0) return '<small class="text-muted">Sin compras previas</small>';
     var html = '<small class="text-muted">';
-    hist.forEach(function (h) {
-        html += h.date + ': $' + h.price.toFixed(2) + ' (' + h.provider + ')<br>';
-    });
-    html += '</small>';
-    return html;
+    hist.forEach(function (h) { html += h.date + ': $' + h.price.toFixed(2) + ' (' + esc(h.provider) + ')<br>'; });
+    return html + '</small>';
 }
 
 function addRow(item) {
     item = item || {};
-    var idx = rowIndex++;
     var tr = document.createElement('tr');
+    var ivaVal = (item.iva_rate != null && item.iva_rate !== '') ? item.iva_rate : DEFAULT_IVA;
     tr.innerHTML =
-        '<td><select name="item_article_id[]" class="form-select article-select" required>' + buildArticleOptions(item.article_id) + '</select></td>' +
-        '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control item-qty" value="' + (item.quantity || 1) + '" required></td>' +
-        '<td><input type="number" step="0.01" min="0" name="item_unit_price[]" class="form-control item-price" value="' + (item.unit_price || '') + '" required></td>' +
-        '<td class="item-subtotal text-end">0.00</td>' +
-        '<td class="item-history">' + buildHistoryHtml(item.article_id || '') + '</td>' +
+        '<td>' +
+            '<input type="hidden" name="item_article_id[]" class="it-article" value="' + (item.article_id || '') + '" required>' +
+            '<button type="button" class="btn btn-outline-secondary w-100 text-start pick-article">' +
+                '<span class="pick-label text-muted">Seleccionar articulo...</span>' +
+            '</button>' +
+        '</td>' +
+        '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control it-qty" value="' + (item.quantity || 1) + '" required></td>' +
+        '<td><input type="number" step="0.01" min="0" name="item_unit_price[]" class="form-control it-price" value="' + (item.unit_price || '') + '" required></td>' +
+        '<td><input type="number" step="0.01" min="0" name="item_iva_rate[]" class="form-control it-iva" value="' + ivaVal + '"></td>' +
+        '<td class="text-end it-subtotal">0.00</td>' +
+        '<td class="text-end it-total">0.00</td>' +
+        '<td class="it-history">' + buildHistoryHtml(item.article_id || '') + '</td>' +
         '<td><button type="button" class="btn btn-sm btn-soft-danger remove-row"><i class="mdi mdi-delete"></i></button></td>';
     itemsBody.appendChild(tr);
 
-    var select = tr.querySelector('.article-select');
-    var qtyInput = tr.querySelector('.item-qty');
-    var priceInput = tr.querySelector('.item-price');
-    var historyCell = tr.querySelector('.item-history');
-    var subtotalCell = tr.querySelector('.item-subtotal');
-
-    // Busqueda rapida en el select de articulo
-    if (typeof Choices !== 'undefined') {
-        new Choices(select, {
-            searchEnabled: true,
-            shouldSort: false,
-            itemSelectText: '',
-            searchResultLimit: 50,
-            noResultsText: 'Sin resultados',
-            searchPlaceholderValue: 'Buscar articulo...'
-        });
+    if (item.article_id && ARTICLE_MAP[item.article_id]) {
+        setRowArticle(tr, ARTICLE_MAP[item.article_id]);
     }
-
-    function recalc() {
-        var qty = parseFloat(qtyInput.value) || 0;
-        var price = parseFloat(priceInput.value) || 0;
-        subtotalCell.innerText = (qty * price).toFixed(2);
-        recalcTotal();
-    }
-
-    select.addEventListener('change', function () {
-        historyCell.innerHTML = buildHistoryHtml(select.value);
-        recalc();
-    });
-    qtyInput.addEventListener('input', recalc);
-    priceInput.addEventListener('input', recalc);
-    tr.querySelector('.remove-row').addEventListener('click', function () {
-        tr.remove();
-        recalcTotal();
-    });
-
-    recalc();
+    recalcTotals();
 }
 
-function recalcTotal() {
-    var total = 0;
-    document.querySelectorAll('.item-subtotal').forEach(function (cell) {
-        total += parseFloat(cell.innerText) || 0;
-    });
-    document.getElementById('grandTotal').innerText = total.toFixed(2);
+function setRowArticle(tr, article) {
+    tr.querySelector('.it-article').value = article.id;
+    var label = tr.querySelector('.pick-label');
+    label.classList.remove('text-muted');
+    label.innerHTML = esc(article.name) + ' <small class="text-muted">(' + esc(article.category_name) + ' / ' + esc(article.brand_name) + ')</small>';
+    tr.querySelector('.it-history').innerHTML = buildHistoryHtml(article.id);
 }
 
-document.getElementById('addItemBtn').addEventListener('click', function () {
-    addRow();
+function recalcRow(tr) {
+    var qty = parseFloat(tr.querySelector('.it-qty').value) || 0;
+    var price = parseFloat(tr.querySelector('.it-price').value) || 0;
+    var iva = parseFloat(tr.querySelector('.it-iva').value) || 0;
+    var sub = qty * price;
+    var tot = sub * (1 + iva / 100);
+    tr.querySelector('.it-subtotal').innerText = sub.toFixed(2);
+    tr.querySelector('.it-total').innerText = tot.toFixed(2);
+}
+
+function recalcTotals() {
+    var subSum = 0, totSum = 0;
+    document.querySelectorAll('#itemsBody tr').forEach(function (tr) {
+        recalcRow(tr);
+        subSum += parseFloat(tr.querySelector('.it-subtotal').innerText) || 0;
+        totSum += parseFloat(tr.querySelector('.it-total').innerText) || 0;
+    });
+    document.getElementById('grandSubtotal').innerText = subSum.toFixed(2);
+    document.getElementById('grandTotal').innerText = totSum.toFixed(2);
+    document.getElementById('grandIva').innerText = (totSum - subSum).toFixed(2);
+}
+
+// Delegacion de eventos en el cuerpo de la tabla
+itemsBody.addEventListener('input', recalcTotals);
+itemsBody.addEventListener('click', function (e) {
+    if (e.target.closest('.remove-row')) {
+        e.target.closest('tr').remove();
+        recalcTotals();
+    } else if (e.target.closest('.pick-article')) {
+        openArticleModal(e.target.closest('tr'));
+    }
 });
 
-if (EXISTING_ITEMS.length > 0) {
-    EXISTING_ITEMS.forEach(function (it) {
-        addRow(it);
+document.getElementById('addItemBtn').addEventListener('click', function () { addRow(); });
+
+// ---- Modal de seleccion de articulo ----
+var activeRow = null;
+var articleModal = new bootstrap.Modal(document.getElementById('articleModal'));
+var modalBody = document.getElementById('articleModalBody');
+var searchInput = document.getElementById('articleSearch');
+var noResults = document.getElementById('articleNoResults');
+
+function renderArticleList(filter) {
+    filter = (filter || '').toLowerCase();
+    var html = '';
+    var shown = 0;
+    ARTICLES.forEach(function (a) {
+        var hay = (a.name + ' ' + a.category_name + ' ' + a.brand_name).toLowerCase();
+        if (filter && hay.indexOf(filter) === -1) return;
+        shown++;
+        html += '<tr>' +
+            '<td>' + esc(a.name) + '</td>' +
+            '<td class="text-muted">' + esc(a.category_name) + '</td>' +
+            '<td class="text-muted">' + esc(a.brand_name) + '</td>' +
+            '<td class="text-end"><button type="button" class="btn btn-sm btn-soft-primary choose-article" data-id="' + a.id + '">Elegir</button></td>' +
+            '</tr>';
     });
+    modalBody.innerHTML = html;
+    noResults.classList.toggle('d-none', shown > 0);
+}
+
+function openArticleModal(tr) {
+    activeRow = tr;
+    searchInput.value = '';
+    renderArticleList('');
+    articleModal.show();
+    setTimeout(function () { searchInput.focus(); }, 300);
+}
+
+searchInput.addEventListener('input', function () { renderArticleList(this.value); });
+modalBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('.choose-article');
+    if (!btn || !activeRow) return;
+    var a = ARTICLE_MAP[parseInt(btn.getAttribute('data-id'))];
+    if (a) { setRowArticle(activeRow, a); recalcTotals(); }
+    articleModal.hide();
+});
+
+// Evitar enviar el formulario si alguna fila no tiene articulo elegido
+document.getElementById('invoiceForm').addEventListener('submit', function (e) {
+    var missing = false;
+    document.querySelectorAll('#itemsBody .it-article').forEach(function (inp) {
+        if (!inp.value) missing = true;
+    });
+    if (missing) {
+        e.preventDefault();
+        alert('Cada fila debe tener un articulo seleccionado.');
+    }
+});
+
+// Inicializar
+if (EXISTING_ITEMS.length > 0) {
+    EXISTING_ITEMS.forEach(function (it) { addRow(it); });
 } else {
     addRow();
 }

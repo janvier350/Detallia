@@ -18,6 +18,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     $contact_name = trim($_POST["contact_name"] ?? "");
     $address      = trim($_POST["address"] ?? "");
     $ciudad       = trim($_POST["ciudad"] ?? "");
+    $zona         = trim($_POST["zona"] ?? "");
     $provincia    = trim($_POST["provincia"] ?? "");
     $phone        = trim($_POST["phone"] ?? "");
     $email        = trim($_POST["email"] ?? "");
@@ -32,13 +33,13 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         $error_msg = "El nombre de la empresa es obligatorio.";
     } else {
         if ($client_id > 0) {
-            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, provincia=?, phone=?, email=?, notes=?, status=?, brand_id=?, classification_id=? WHERE id=?";
+            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, zona=?, provincia=?, phone=?, email=?, notes=?, status=?, brand_id=?, classification_id=? WHERE id=?";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "sssssssssiii", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id, $client_id);
+            mysqli_stmt_bind_param($stmt, "ssssssssssiii", $name, $contact_name, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id, $client_id);
         } else {
-            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, provincia, phone, email, notes, status, brand_id, classification_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, zona, provincia, phone, email, notes, status, brand_id, classification_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "sssssssssii", $name, $contact_name, $address, $ciudad, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id);
+            mysqli_stmt_bind_param($stmt, "ssssssssssii", $name, $contact_name, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
@@ -82,7 +83,7 @@ $filter_ciudad    = trim($_GET["ciudad"] ?? "");
 $filter_brand     = (int) ($_GET["brand_id"] ?? 0);
 $filter_class     = (int) ($_GET["classification_id"] ?? 0);
 
-$clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address, c.ciudad, c.provincia, c.status,
+$clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address, c.ciudad, c.zona, c.provincia, c.status,
                       c.brand_id, c.classification_id, b.name AS brand_name, cl.name AS classification_name
                FROM clients c
                LEFT JOIN brands b ON b.id = c.brand_id
@@ -259,7 +260,7 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                 <?php endif; ?>
 
                                 <div class="table-responsive">
-                                    <table class="table table-centered table-nowrap mb-0">
+                                    <table class="table table-centered table-nowrap mb-0" id="clientsTable">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>#</th>
@@ -269,9 +270,23 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                 <th>Clasificacion</th>
                                                 <th>Telefono</th>
                                                 <th>Ciudad</th>
+                                                <th>Zona</th>
                                                 <th>Provincia</th>
                                                 <th>Estado</th>
                                                 <?php if ($can_edit): ?><th class="text-end">Acciones</th><?php endif; ?>
+                                            </tr>
+                                            <tr class="col-search">
+                                                <th></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="1" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="2" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="3" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="4" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="5" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="6" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="7" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="8" placeholder="Buscar..."></th>
+                                                <th></th>
+                                                <?php if ($can_edit): ?><th></th><?php endif; ?>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -290,6 +305,7 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                     </td>
                                                     <td><?php echo htmlspecialchars($c["phone"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["ciudad"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["zona"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["provincia"] ?? ""); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $c["status"] === 'activo' ? 'success' : 'secondary'; ?>">
@@ -379,11 +395,15 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                 </div>
 
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Ciudad</label>
                         <input type="text" name="ciudad" id="client_ciudad" class="form-control">
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Zona</label>
+                        <input type="text" name="zona" id="client_zona" class="form-control">
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Provincia</label>
                         <input type="text" name="provincia" id="client_provincia" class="form-control">
                     </div>
@@ -438,6 +458,7 @@ function openCreateModal() {
     document.getElementById('client_classification_id').value = '';
     document.getElementById('client_address').value = '';
     document.getElementById('client_ciudad').value = '';
+    document.getElementById('client_zona').value = '';
     document.getElementById('client_provincia').value = '';
     document.getElementById('client_phone').value = '';
     document.getElementById('client_email').value = '';
@@ -454,6 +475,7 @@ function openEditModal(c) {
     document.getElementById('client_classification_id').value = c.classification_id || '';
     document.getElementById('client_address').value = c.address || '';
     document.getElementById('client_ciudad').value = c.ciudad || '';
+    document.getElementById('client_zona').value = c.zona || '';
     document.getElementById('client_provincia').value = c.provincia || '';
     document.getElementById('client_phone').value = c.phone || '';
     document.getElementById('client_email').value = c.email || '';
@@ -465,6 +487,33 @@ function openEditModal(c) {
 }
 </script>
 <?php endif; ?>
+
+<script>
+// Busqueda por columna (estilo Tango)
+(function () {
+    var table = document.getElementById('clientsTable');
+    if (!table) return;
+    var inputs = table.querySelectorAll('.colf');
+    var rows = table.querySelectorAll('tbody tr');
+
+    function apply() {
+        var filters = [];
+        inputs.forEach(function (inp) {
+            var v = inp.value.trim().toLowerCase();
+            if (v) filters.push({ col: parseInt(inp.getAttribute('data-col')), val: v });
+        });
+        rows.forEach(function (row) {
+            var cells = row.children;
+            var show = filters.every(function (f) {
+                var cell = cells[f.col];
+                return cell && (cell.innerText || cell.textContent || '').toLowerCase().indexOf(f.val) !== -1;
+            });
+            row.style.display = show ? '' : 'none';
+        });
+    }
+    inputs.forEach(function (inp) { inp.addEventListener('input', apply); });
+})();
+</script>
 
 </body>
 

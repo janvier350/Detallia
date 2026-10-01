@@ -16,6 +16,8 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
     $client_id    = isset($_POST["id"]) ? (int) $_POST["id"] : 0;
     $name         = trim($_POST["name"] ?? "");
     $contact_name = trim($_POST["contact_name"] ?? "");
+    $genero       = trim($_POST["genero"] ?? "");
+    $cargo        = trim($_POST["cargo"] ?? "");
     $address      = trim($_POST["address"] ?? "");
     $ciudad       = trim($_POST["ciudad"] ?? "");
     $zona         = trim($_POST["zona"] ?? "");
@@ -33,13 +35,13 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         $error_msg = "El nombre de la empresa es obligatorio.";
     } else {
         if ($client_id > 0) {
-            $sql  = "UPDATE clients SET name=?, contact_name=?, address=?, ciudad=?, zona=?, provincia=?, phone=?, email=?, notes=?, status=?, brand_id=?, classification_id=? WHERE id=?";
+            $sql  = "UPDATE clients SET name=?, contact_name=?, genero=?, cargo=?, address=?, ciudad=?, zona=?, provincia=?, phone=?, email=?, notes=?, status=?, brand_id=?, classification_id=? WHERE id=?";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssssssssssiii", $name, $contact_name, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id, $client_id);
+            mysqli_stmt_bind_param($stmt, "ssssssssssssiii", $name, $contact_name, $genero, $cargo, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id, $client_id);
         } else {
-            $sql  = "INSERT INTO clients (name, contact_name, address, ciudad, zona, provincia, phone, email, notes, status, brand_id, classification_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql  = "INSERT INTO clients (name, contact_name, genero, cargo, address, ciudad, zona, provincia, phone, email, notes, status, brand_id, classification_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = mysqli_prepare($link, $sql);
-            mysqli_stmt_bind_param($stmt, "ssssssssssii", $name, $contact_name, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id);
+            mysqli_stmt_bind_param($stmt, "ssssssssssssii", $name, $contact_name, $genero, $cargo, $address, $ciudad, $zona, $provincia, $phone, $email, $notes, $status, $brand_id, $classification_id);
         }
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
@@ -83,7 +85,7 @@ $filter_ciudad    = trim($_GET["ciudad"] ?? "");
 $filter_brand     = (int) ($_GET["brand_id"] ?? 0);
 $filter_class     = (int) ($_GET["classification_id"] ?? 0);
 
-$clientsSql = "SELECT c.id, c.name, c.contact_name, c.phone, c.email, c.address, c.ciudad, c.zona, c.provincia, c.status,
+$clientsSql = "SELECT c.id, c.name, c.contact_name, c.genero, c.cargo, c.phone, c.email, c.address, c.ciudad, c.zona, c.provincia, c.status,
                       c.brand_id, c.classification_id, b.name AS brand_name, cl.name AS classification_name
                FROM clients c
                LEFT JOIN brands b ON b.id = c.brand_id
@@ -194,6 +196,9 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                 <a href="admin-clients-import.php" class="btn btn-soft-primary waves-effect waves-light">
                                                     <i class="mdi mdi-file-excel-outline me-1"></i> Importar desde Excel
                                                 </a>
+                                                <a href="admin-clients-enrich.php" class="btn btn-soft-success waves-effect waves-light">
+                                                    <i class="mdi mdi-account-details-outline me-1"></i> Completar genero/cargo
+                                                </a>
                                             <?php endif; ?>
                                             <button type="button" class="btn btn-primary waves-effect waves-light" data-bs-toggle="modal" data-bs-target="#clientModal" onclick="openCreateModal()">
                                                 <i class="mdi mdi-plus me-1"></i> Nuevo cliente
@@ -265,6 +270,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                             <tr>
                                                 <th>#</th>
                                                 <th>Contacto</th>
+                                                <th>Genero</th>
+                                                <th>Cargo</th>
                                                 <th>Empresa</th>
                                                 <th>Marca</th>
                                                 <th>Clasificacion</th>
@@ -285,6 +292,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                 <th><input type="text" class="form-control form-control-sm colf" data-col="6" placeholder="Buscar..."></th>
                                                 <th><input type="text" class="form-control form-control-sm colf" data-col="7" placeholder="Buscar..."></th>
                                                 <th><input type="text" class="form-control form-control-sm colf" data-col="8" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="9" placeholder="Buscar..."></th>
+                                                <th><input type="text" class="form-control form-control-sm colf" data-col="10" placeholder="Buscar..."></th>
                                                 <th></th>
                                                 <?php if ($can_edit): ?><th></th><?php endif; ?>
                                             </tr>
@@ -294,6 +303,8 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                 <tr>
                                                     <td><?php echo (int) $c["id"]; ?></td>
                                                     <td><?php echo htmlspecialchars($c["name"]); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["genero"] ?? ""); ?></td>
+                                                    <td><?php echo htmlspecialchars($c["cargo"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["contact_name"] ?? ""); ?></td>
                                                     <td><?php echo htmlspecialchars($c["brand_name"] ?? "—"); ?></td>
                                                     <td>
@@ -365,6 +376,21 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Contacto (persona que recibe) <span class="text-danger">*</span></label>
                         <input type="text" name="name" id="client_name" class="form-control" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Genero del contacto</label>
+                        <select name="genero" id="client_genero" class="form-select">
+                            <option value="">Sin especificar</option>
+                            <option value="HOMBRE">Hombre</option>
+                            <option value="MUJER">Mujer</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Cargo del contacto</label>
+                        <input type="text" name="cargo" id="client_cargo" class="form-control" placeholder="Ej. Gerente General">
                     </div>
                 </div>
 
@@ -454,6 +480,8 @@ function openCreateModal() {
     document.getElementById('client_id').value = '';
     document.getElementById('client_name').value = '';
     document.getElementById('client_contact_name').value = '';
+    document.getElementById('client_genero').value = '';
+    document.getElementById('client_cargo').value = '';
     document.getElementById('client_brand_id').value = '';
     document.getElementById('client_classification_id').value = '';
     document.getElementById('client_address').value = '';
@@ -471,6 +499,8 @@ function openEditModal(c) {
     document.getElementById('client_id').value = c.id;
     document.getElementById('client_name').value = c.name;
     document.getElementById('client_contact_name').value = c.contact_name || '';
+    document.getElementById('client_genero').value = (c.genero || '').toUpperCase();
+    document.getElementById('client_cargo').value = c.cargo || '';
     document.getElementById('client_brand_id').value = c.brand_id || '';
     document.getElementById('client_classification_id').value = c.classification_id || '';
     document.getElementById('client_address').value = c.address || '';

@@ -71,6 +71,24 @@ $res = mysqli_query($link, "SELECT COALESCE(b.name,'(Sin marca)') AS g, COUNT(c.
 while ($r = mysqli_fetch_assoc($res)) { $brandLabels[] = $r["g"]; $brandData[] = (int) $r["total"]; }
 
 // ---------------------------------------------------------------
+// Por genero
+// ---------------------------------------------------------------
+$genLabels = [];
+$genData   = [];
+$res = mysqli_query($link, "SELECT COALESCE(NULLIF(UPPER(TRIM(c.genero)),''),'(Sin dato)') AS g, COUNT(*) AS total
+                            FROM clients c $whereC GROUP BY g ORDER BY total DESC");
+while ($r = mysqli_fetch_assoc($res)) { $genLabels[] = ucfirst(mb_strtolower($r["g"])); $genData[] = (int) $r["total"]; }
+
+// ---------------------------------------------------------------
+// Por cargo (top 10)
+// ---------------------------------------------------------------
+$cargoLabels = [];
+$cargoData   = [];
+$res = mysqli_query($link, "SELECT COALESCE(NULLIF(TRIM(c.cargo),''),'(Sin dato)') AS g, COUNT(*) AS total
+                            FROM clients c $whereC GROUP BY g ORDER BY total DESC LIMIT 10");
+while ($r = mysqli_fetch_assoc($res)) { $cargoLabels[] = $r["g"]; $cargoData[] = (int) $r["total"]; }
+
+// ---------------------------------------------------------------
 // Cruce Clasificacion x Marca (tabla dinamica + barras apiladas)
 // ---------------------------------------------------------------
 $brandOrder = $brandLabels; // columnas
@@ -256,6 +274,28 @@ foreach ($brandOrder as $brd) {
                     </div>
                 </div>
 
+                <!-- Fila 3: genero (donut) + cargo (barras horizontales) -->
+                <div class="row">
+                    <div class="col-xl-5">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Contactos por genero</h5>
+                                <p class="text-muted small mb-3">Util para decidir el tipo de regalo segun el genero del contacto.</p>
+                                <div id="chart-genero"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-7">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Top cargos</h5>
+                                <p class="text-muted small mb-3">Los cargos mas frecuentes entre los contactos que reciben regalos.</p>
+                                <div id="chart-cargo"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tabla dinamica -->
                 <div class="row">
                     <div class="col-12">
@@ -359,6 +399,28 @@ new ApexCharts(document.querySelector("#chart-cross"), {
     dataLabels: { enabled: false },
     xaxis: { categories: <?php echo json_encode($pivotRows); ?> },
     legend: { position: 'bottom' },
+    grid: { borderColor: 'rgba(0,0,0,.08)' }
+}).render();
+
+// ---- Donut: genero ----
+new ApexCharts(document.querySelector("#chart-genero"), {
+    series: <?php echo json_encode($genData); ?>,
+    labels: <?php echo json_encode($genLabels); ?>,
+    chart: { type: 'donut', height: 320 },
+    colors: ['#556ee6', '#f46a6a', '#adb5bd', '#34c38f', '#f1b44c'],
+    legend: { position: 'bottom' },
+    plotOptions: { pie: { donut: { size: '62%' } } },
+    dataLabels: { enabled: true, formatter: function (val) { return Math.round(val) + '%'; } }
+}).render();
+
+// ---- Barras horizontales: cargo ----
+new ApexCharts(document.querySelector("#chart-cargo"), {
+    series: [{ name: 'Contactos', data: <?php echo json_encode($cargoData); ?> }],
+    chart: { type: 'bar', height: 320, toolbar: { show: false } },
+    colors: ['#34c38f'],
+    plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '65%' } },
+    dataLabels: { enabled: true },
+    xaxis: { categories: <?php echo json_encode($cargoLabels); ?> },
     grid: { borderColor: 'rgba(0,0,0,.08)' }
 }).render();
 </script>

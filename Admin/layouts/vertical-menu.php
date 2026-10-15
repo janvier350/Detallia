@@ -334,6 +334,13 @@ $pendingRequestsCount = count($pendingRequests);
                 </li>
 
                 <li>
+                    <a href="admin-quotations-list.php">
+                        <i data-feather="file-text"></i>
+                        <span>Cotizaciones</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="admin-brands-list.php">
                         <i data-feather="tag"></i>
                         <span>Marcas</span>

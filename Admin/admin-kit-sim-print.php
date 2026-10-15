@@ -94,6 +94,7 @@ while ($r = mysqli_fetch_assoc($ri)) {
         <thead>
             <tr>
                 <th>Producto</th>
+                <th>Proveedor</th>
                 <th class="num">Precio unit.</th>
                 <th class="num">IVA %</th>
                 <th class="num">Cant.</th>
@@ -104,10 +105,11 @@ while ($r = mysqli_fetch_assoc($ri)) {
         </thead>
         <tbody>
             <?php if (empty($items)): ?>
-                <tr><td colspan="7" style="text-align:center;color:#999;">Sin productos.</td></tr>
+                <tr><td colspan="8" style="text-align:center;color:#999;">Sin productos.</td></tr>
             <?php else: foreach ($items as $it): ?>
                 <tr>
                     <td><?php echo htmlspecialchars($it["product_name"]); ?></td>
+                    <td><?php echo htmlspecialchars($it["provider_name"] ?? ""); ?></td>
                     <td class="num">$<?php echo number_format($it["unit_price"], 2); ?></td>
                     <td class="num"><?php echo rtrim(rtrim(number_format($it["iva_rate"], 2), '0'), '.'); ?>%</td>
                     <td class="num"><?php echo rtrim(rtrim(number_format($it["quantity"], 2), '0'), '.'); ?></td>

@@ -22,6 +22,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
     $prices   = $_POST["unit_price"] ?? [];
     $ivas     = $_POST["iva_rate"] ?? [];
     $qtys     = $_POST["quantity"] ?? [];
+    $provIds  = $_POST["provider_id"] ?? [];
+    $provNames = $_POST["provider_name"] ?? [];
 
     if ($name === "") {
         $error_msg = "El nombre del simulacro es obligatorio.";
@@ -42,7 +44,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
             $sim_id = mysqli_insert_id($link);
         }
 
-        $itemStmt = mysqli_prepare($link, "INSERT INTO kit_simulation_items (simulation_id, product_name, unit_price, iva_rate, quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+        $itemStmt = mysqli_prepare($link, "INSERT INTO kit_simulation_items (simulation_id, product_name, provider_id, provider_name, unit_price, iva_rate, quantity, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $order = 0;
         for ($i = 0; $i < count($products); $i++) {
             $pname = trim($products[$i] ?? "");
@@ -51,7 +53,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
             $iva   = (float) ($ivas[$i] ?? 15);
             $qty   = (float) ($qtys[$i] ?? 1);
             if ($qty <= 0) $qty = 1;
-            mysqli_stmt_bind_param($itemStmt, "isdddi", $sim_id, $pname, $price, $iva, $qty, $order);
+            $pid   = (int) ($provIds[$i] ?? 0);
+            $pid   = $pid > 0 ? $pid : null;
+            $pn    = trim($provNames[$i] ?? "");
+            $pn    = $pn !== "" ? $pn : null;
+            mysqli_stmt_bind_param($itemStmt, "isisdddi", $sim_id, $pname, $pid, $pn, $price, $iva, $qty, $order);
             mysqli_stmt_execute($itemStmt);
             $order++;
         }
@@ -82,6 +88,25 @@ if ($sim_id > 0) {
 $classRes = mysqli_query($link, "SELECT id, name FROM client_classifications ORDER BY name");
 $classes = [];
 while ($c = mysqli_fetch_assoc($classRes)) { $classes[] = $c; }
+
+// Cotizaciones disponibles para elegir en el simulador
+$quotes = [];
+$qr = mysqli_query($link, "SELECT q.article_id, a.name AS article_name, q.provider_id, p.name AS provider_name,
+                                  q.unit_price, q.iva_rate
+                           FROM quotations q
+                           JOIN articles a ON a.id = q.article_id
+                           JOIN providers p ON p.id = q.provider_id
+                           ORDER BY a.name, q.unit_price ASC");
+while ($q = mysqli_fetch_assoc($qr)) {
+    $quotes[] = [
+        "article_id" => (int) $q["article_id"],
+        "article_name" => $q["article_name"],
+        "provider_id" => (int) $q["provider_id"],
+        "provider_name" => $q["provider_name"],
+        "unit_price" => (float) $q["unit_price"],
+        "iva_rate" => (float) $q["iva_rate"],
+    ];
+}
 
 $isEdit = $sim_id > 0;
 ?>
@@ -161,14 +186,18 @@ $isEdit = $sim_id > 0;
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="card-title mb-0">Productos del kit</h5>
-                                <button type="button" class="btn btn-soft-primary" id="addRowBtn"><i class="mdi mdi-plus me-1"></i> Agregar producto</button>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-soft-success" id="pickQuoteBtn" data-bs-toggle="modal" data-bs-target="#quotePickModal"><i class="mdi mdi-tag-text-outline me-1"></i> Elegir producto cotizado</button>
+                                    <button type="button" class="btn btn-soft-primary" id="addRowBtn"><i class="mdi mdi-plus me-1"></i> Agregar producto</button>
+                                </div>
                             </div>
 
                             <div class="table-responsive">
                                 <table class="table table-bordered align-middle mb-0" id="itemsTable">
                                     <thead class="table-light">
                                         <tr>
-                                            <th style="min-width:220px">Producto</th>
+                                            <th style="min-width:200px">Producto</th>
+                                            <th style="min-width:150px">Proveedor</th>
                                             <th style="width:130px">Precio unit.</th>
                                             <th style="width:110px">IVA %</th>
                                             <th style="width:100px">Cantidad</th>
@@ -180,13 +209,13 @@ $isEdit = $sim_id > 0;
                                     <tbody id="itemsBody"><!-- filas por JS --></tbody>
                                     <tfoot>
                                         <tr class="table-light">
-                                            <th colspan="4" class="text-end">Totales</th>
+                                            <th colspan="5" class="text-end">Totales</th>
                                             <th class="text-end"><span id="grandSubtotal">0.00</span></th>
                                             <th class="text-end"><span id="grandTotal">0.00</span></th>
                                             <th></th>
                                         </tr>
                                         <tr>
-                                            <td colspan="7" class="text-end small text-muted">
+                                            <td colspan="8" class="text-end small text-muted">
                                                 IVA total: <span id="grandIva">0.00</span>
                                             </td>
                                         </tr>
@@ -209,6 +238,32 @@ $isEdit = $sim_id > 0;
 </div>
 
 <?php include 'layouts/right-sidebar.php'; ?>
+
+<!-- Modal: elegir producto cotizado -->
+<div class="modal fade" id="quotePickModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="mdi mdi-tag-text-outline me-1"></i> Productos cotizados</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" id="quoteSearch" class="form-control" placeholder="Buscar producto o proveedor..." autocomplete="off">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>Producto</th><th>Proveedor</th><th class="text-end">Precio</th><th class="text-end">Total c/IVA</th><th></th></tr>
+                        </thead>
+                        <tbody id="quoteModalBody"></tbody>
+                    </table>
+                    <p class="text-muted text-center my-3 d-none" id="quoteNoResults">No hay cotizaciones. Registralas en el modulo Cotizaciones.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
 
@@ -216,21 +271,29 @@ $isEdit = $sim_id > 0;
 var EXISTING_ITEMS = <?php echo json_encode(array_map(function ($r) {
     return [
         "product_name" => $r["product_name"],
+        "provider_id"  => $r["provider_id"] !== null ? (int) $r["provider_id"] : "",
+        "provider_name" => $r["provider_name"],
         "unit_price"   => (float) $r["unit_price"],
         "iva_rate"     => (float) $r["iva_rate"],
         "quantity"     => (float) $r["quantity"],
     ];
 }, $items)); ?>;
 
+var QUOTES = <?php echo json_encode($quotes); ?>;
 var DEFAULT_IVA = 15;
 
 function money(n) { return (isNaN(n) ? 0 : n).toFixed(2); }
+function escq(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/"/g, '&quot;').replace(/</g,'&lt;'); }
 
 function addRow(item) {
     item = item || {};
     var tr = document.createElement('tr');
     tr.innerHTML =
-        '<td><input type="text" name="product_name[]" class="form-control form-control-sm" value="' + (item.product_name ? String(item.product_name).replace(/"/g, '&quot;') : '') + '"></td>' +
+        '<td><input type="text" name="product_name[]" class="form-control form-control-sm" value="' + escq(item.product_name) + '"></td>' +
+        '<td>' +
+            '<input type="hidden" name="provider_id[]" class="it-provid" value="' + (item.provider_id != null ? item.provider_id : '') + '">' +
+            '<input type="text" name="provider_name[]" class="form-control form-control-sm it-provname" value="' + escq(item.provider_name) + '" placeholder="(opcional)">' +
+        '</td>' +
         '<td><input type="number" step="0.01" min="0" name="unit_price[]" class="form-control form-control-sm text-end it-price" value="' + (item.unit_price != null ? item.unit_price : '') + '"></td>' +
         '<td><input type="number" step="0.01" min="0" name="iva_rate[]" class="form-control form-control-sm text-end it-iva" value="' + (item.iva_rate != null ? item.iva_rate : DEFAULT_IVA) + '"></td>' +
         '<td><input type="number" step="0.01" min="0" name="quantity[]" class="form-control form-control-sm text-end it-qty" value="' + (item.quantity != null ? item.quantity : 1) + '"></td>' +
@@ -273,6 +336,63 @@ if (EXISTING_ITEMS.length > 0) {
 } else {
     addRow(); addRow(); addRow();
 }
+
+// ---- Modal de cotizaciones ----
+(function () {
+    var body = document.getElementById('quoteModalBody');
+    var search = document.getElementById('quoteSearch');
+    var noRes = document.getElementById('quoteNoResults');
+    if (!body) return;
+
+    // Marcar la cotizacion mas barata por producto
+    var cheapest = {};
+    QUOTES.forEach(function (q) {
+        if (cheapest[q.article_id] == null || q.unit_price < cheapest[q.article_id]) cheapest[q.article_id] = q.unit_price;
+    });
+
+    function render(filter) {
+        filter = (filter || '').toLowerCase();
+        var html = ''; var shown = 0;
+        QUOTES.forEach(function (q, idx) {
+            var hay = (q.article_name + ' ' + q.provider_name).toLowerCase();
+            if (filter && hay.indexOf(filter) === -1) return;
+            shown++;
+            var tot = q.unit_price * (1 + q.iva_rate / 100);
+            var best = (q.unit_price === cheapest[q.article_id]) ? ' <span class="badge bg-success">Mas barato</span>' : '';
+            html += '<tr>' +
+                '<td>' + escq(q.article_name) + best + '</td>' +
+                '<td>' + escq(q.provider_name) + '</td>' +
+                '<td class="text-end">$' + money(q.unit_price) + '</td>' +
+                '<td class="text-end">$' + money(tot) + '</td>' +
+                '<td class="text-end"><button type="button" class="btn btn-sm btn-soft-primary choose-quote" data-idx="' + idx + '">Elegir</button></td>' +
+                '</tr>';
+        });
+        body.innerHTML = html;
+        noRes.classList.toggle('d-none', shown > 0);
+    }
+
+    search.addEventListener('input', function () { render(this.value); });
+    document.getElementById('quotePickModal').addEventListener('shown.bs.modal', function () {
+        render(search.value);
+        search.focus();
+    });
+    body.addEventListener('click', function (e) {
+        var btn = e.target.closest('.choose-quote');
+        if (!btn) return;
+        var q = QUOTES[parseInt(btn.getAttribute('data-idx'))];
+        if (q) {
+            addRow({
+                product_name: q.article_name,
+                provider_id: q.provider_id,
+                provider_name: q.provider_name,
+                unit_price: q.unit_price,
+                iva_rate: q.iva_rate,
+                quantity: 1
+            });
+        }
+        bootstrap.Modal.getInstance(document.getElementById('quotePickModal')).hide();
+    });
+})();
 </script>
 
 </body>

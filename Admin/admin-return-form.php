@@ -102,6 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     mysqli_commit($link);
                     $_SESSION["flash_success"] = "Devolucion registrada correctamente.";
+                    log_activity($link, "creo", "Devoluciones", "Registro devolucion #" . $return_id);
                     header("location: admin-returns-list.php");
                     exit;
                 } catch (Exception $e) {

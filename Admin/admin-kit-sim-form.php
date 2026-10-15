@@ -57,6 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
         }
 
         $_SESSION["flash_success"] = $editing ? "Simulacro actualizado." : "Simulacro creado.";
+        log_activity($link, $editing ? "edito" : "creo", "Simulador de kits", ($editing ? "Edito" : "Creo") . " simulacro #" . $sim_id, $name);
         header("location: admin-kit-sim-list.php");
         exit;
     }

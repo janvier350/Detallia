@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_once 'layouts/mailer.php';
 require_role([1]); // Solo Administrador
 
@@ -103,6 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
             }
             if ($stmt && mysqli_stmt_execute($stmt)) {
                 $success_msg = "Usuario actualizado correctamente.";
+                log_activity($link, "edito", "Usuarios", "Edito usuario #" . $user_id, $username);
             } else {
                 $error_msg = "No se pudo actualizar el usuario: " . mysqli_error($link);
             }
@@ -117,6 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
                 mysqli_stmt_bind_param($stmt, "ssssis", $useremail, $username, $full_name, $hashed, $role_id, $status);
                 if (mysqli_stmt_execute($stmt)) {
                     $success_msg = "Usuario creado correctamente.";
+                    log_activity($link, "creo", "Usuarios", "Creo usuario #" . mysqli_insert_id($link), $username);
 
                     // Enviar correo de bienvenida con datos de acceso y explicacion del rol
                     $roleNameRow = mysqli_fetch_assoc(mysqli_query($link, "SELECT name FROM roles WHERE id = " . (int) $role_id));
@@ -152,6 +155,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
         mysqli_stmt_bind_param($stmt, "i", $user_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Usuario eliminado correctamente.";
+            log_activity($link, "elimino", "Usuarios", "Elimino usuario #" . $user_id);
         } else {
             $error_msg = "No se pudo eliminar el usuario: " . mysqli_error($link);
         }

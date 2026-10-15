@@ -50,6 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             mysqli_commit($link);
             $_SESSION["flash_success"] = "Solicitud registrada correctamente.";
+            log_activity($link, "creo", "Solicitudes", "Registro solicitud #" . $request_id);
             header("location: admin-request-print.php?id=" . $request_id);
             exit;
         } catch (Exception $e) {

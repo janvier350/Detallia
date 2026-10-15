@@ -99,6 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "impor
         }
     }
     $importSummary = ["imported" => $imported, "skipped" => $skipped];
+    log_activity($link, "importo", "Clientes", "Importo " . $imported . " contacto(s) a Clientes desde validacion", $batch["label"] ?? null);
 }
 
 $sends = mysqli_query($link, "SELECT s.email, s.success, s.sent_at, COALESCE(u.full_name, u.username) AS sent_by_name

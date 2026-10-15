@@ -303,6 +303,13 @@ $pendingRequestsCount = count($pendingRequests);
                         <span>Permisos</span>
                     </a>
                 </li>
+
+                <li>
+                    <a href="admin-activity-log.php">
+                        <i data-feather="activity"></i>
+                        <span>Bitacora</span>
+                    </a>
+                </li>
                 <?php endif; ?>
 
                 <li>

@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 5]); // Todos los roles pueden ver; solo Admin/Jefe pueden editar
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
@@ -31,6 +32,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
             mysqli_stmt_bind_param($stmt, "sssssssi", $name, $address, $phone, $email, $contact_name, $notes, $status, $provider_id);
             if (mysqli_stmt_execute($stmt)) {
                 $success_msg = "Proveedor actualizado correctamente.";
+                log_activity($link, "edito", "Proveedores", "Edito proveedor #" . $provider_id, $name);
             } else {
                 $error_msg = "No se pudo actualizar el proveedor: " . mysqli_error($link);
             }
@@ -41,6 +43,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
             mysqli_stmt_bind_param($stmt, "sssssssi", $name, $address, $phone, $email, $contact_name, $notes, $status, $created_by);
             if (mysqli_stmt_execute($stmt)) {
                 $success_msg = "Proveedor creado correctamente.";
+                log_activity($link, "creo", "Proveedores", "Creo proveedor #" . mysqli_insert_id($link), $name);
             } else {
                 $error_msg = "No se pudo crear el proveedor: " . mysqli_error($link);
             }
@@ -59,6 +62,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         mysqli_stmt_bind_param($stmt, "i", $provider_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Proveedor eliminado correctamente.";
+            log_activity($link, "elimino", "Proveedores", "Elimino proveedor #" . $provider_id);
         } else {
             if (mysqli_errno($link) == 1451) {
                 $error_msg = "No se puede eliminar: este proveedor tiene facturas de compra registradas.";

@@ -41,6 +41,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
             $success_msg = $brand_id > 0 ? "Marca actualizada correctamente." : "Marca creada correctamente.";
+            if ($brand_id > 0) { log_activity($link, "edito", "Marcas", "Edito marca #" . $brand_id, $name); }
+            else { log_activity($link, "creo", "Marcas", "Creo marca #" . mysqli_insert_id($link), $name); }
         } else {
             if (mysqli_errno($link) == 1062) {
                 $error_msg = "Ya existe una marca con ese nombre.";
@@ -62,6 +64,7 @@ if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"
         mysqli_stmt_bind_param($stmt, "i", $brand_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Marca eliminada correctamente.";
+            log_activity($link, "elimino", "Marcas", "Elimino marca #" . $brand_id);
         } else {
             if (mysqli_errno($link) == 1451) {
                 $error_msg = "No se puede eliminar: esta marca esta asociada a clientes o kits.";

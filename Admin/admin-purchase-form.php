@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3]); // Todos los roles pueden registrar compras
 
 $invoice_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
@@ -94,6 +95,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             mysqli_commit($link);
             $_SESSION["flash_success"] = $form_id > 0 ? "Factura actualizada correctamente." : "Factura registrada correctamente.";
+            log_activity($link, $form_id > 0 ? "edito" : "creo", "Compras", ($form_id > 0 ? "Edito" : "Registro") . " factura #" . $target_id . " (total " . number_format($total, 2) . ")", "Factura " . $invoice_number);
             header("location: admin-purchases-list.php");
             exit;
         } catch (Exception $e) {

@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2]);
 
 $kit_id    = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
@@ -112,6 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             mysqli_commit($link);
             $_SESSION["flash_success"] = $form_id > 0 ? "Kit actualizado correctamente." : "Kit creado correctamente.";
+            log_activity($link, $form_id > 0 ? "edito" : "creo", "Kits", ($form_id > 0 ? "Edito" : "Creo") . " kit #" . $target_id, $name);
             header("location: admin-kits-list.php");
             exit;
         } catch (Exception $e) {

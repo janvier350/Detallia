@@ -105,6 +105,8 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
             $success_msg = $article_id > 0 ? "Articulo actualizado correctamente." : "Articulo creado correctamente.";
+            if ($article_id > 0) { log_activity($link, "edito", "Articulos", "Edito articulo #" . $article_id, $name); }
+            else { log_activity($link, "creo", "Articulos", "Creo articulo #" . mysqli_insert_id($link), $name); }
         } else {
             $error_msg = "No se pudo guardar el articulo: " . mysqli_error($link);
         }
@@ -129,6 +131,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         mysqli_stmt_bind_param($stmt, "i", $article_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Articulo eliminado correctamente.";
+            log_activity($link, "elimino", "Articulos", "Elimino articulo #" . $article_id);
         } else {
             if (mysqli_errno($link) == 1451) {
                 $error_msg = "No se puede eliminar: este articulo esta usado en compras o kits.";

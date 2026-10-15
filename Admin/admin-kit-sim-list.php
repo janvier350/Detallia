@@ -19,6 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "delet
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
         $_SESSION["flash_success"] = "Simulacro eliminado.";
+        log_activity($link, "elimino", "Simulador de kits", "Elimino simulacro #" . $id);
         header("location: admin-kit-sim-list.php");
         exit;
     }

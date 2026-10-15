@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 5]);
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
@@ -29,6 +30,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         mysqli_stmt_bind_param($stmt, "i", $kit_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Kit eliminado correctamente.";
+            log_activity($link, "elimino", "Kits", "Elimino kit #" . $kit_id);
         } else {
             if (mysqli_errno($link) == 1451) {
                 $error_msg = "No se puede eliminar: este kit tiene entregas registradas.";

@@ -68,6 +68,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             $_SESSION["role_id"] = $role_id;
                             $_SESSION["role_name"] = $role_name;
 
+                            require_once "layouts/helpers.php";
+                            log_activity($link, "ingreso", "Sesion", "Inicio sesion (#" . (int) $id . ")");
+
                             // Redirect user to welcome page
                             header("location: " . ((int) $role_id === 4 ? "admin-requests-list.php" : "index.php"));
                         } else {

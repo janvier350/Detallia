@@ -26,6 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "creat
         mysqli_stmt_bind_param($stmt, "ssi", $token, $label, $createdBy);
         if (mysqli_stmt_execute($stmt)) {
             $_SESSION["flash_success"] = "Enlace de recoleccion creado. Ya puedes enviarlo por correo.";
+            log_activity($link, "creo", "Validacion de contactos", "Creo enlace de recoleccion", $label);
             header("location: admin-validation-links.php");
             exit;
         } else {

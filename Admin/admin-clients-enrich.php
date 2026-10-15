@@ -141,6 +141,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "apply
         }
     }
     $step = "done";
+    log_activity($link, "edito", "Clientes", "Completo genero/cargo de " . $applied . " contacto(s) desde Excel");
 }
 ?>
 <?php include 'layouts/head-main.php'; ?>

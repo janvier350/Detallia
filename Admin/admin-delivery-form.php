@@ -58,6 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             mysqli_commit($link);
             $_SESSION["flash_success"] = "Entrega registrada correctamente.";
+            log_activity($link, "creo", "Entregas", "Registro entrega #" . $target_id);
             header("location: admin-deliveries-list.php");
             exit;
         } catch (Exception $e) {

@@ -2,6 +2,7 @@
 include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
+require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 5]);
 
 $can_edit = in_array((int) $_SESSION["role_id"], [1, 2, 5], true);
@@ -46,6 +47,13 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 
         if ($stmt && mysqli_stmt_execute($stmt)) {
             $success_msg = $client_id > 0 ? "Cliente actualizado correctamente." : "Cliente creado correctamente.";
+            $ref = $name . ($contact_name ? " / " . $contact_name : "");
+            if ($client_id > 0) {
+                log_activity($link, "edito", "Clientes", "Edito cliente #" . $client_id, $ref);
+            } else {
+                $newId = mysqli_insert_id($link);
+                log_activity($link, "creo", "Clientes", "Creo cliente #" . $newId, $ref);
+            }
         } else {
             if (mysqli_errno($link) == 1062) {
                 $error_msg = "Ya existe un cliente registrado con ese nombre de empresa.";
@@ -67,6 +75,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
         mysqli_stmt_bind_param($stmt, "i", $client_id);
         if (mysqli_stmt_execute($stmt)) {
             $success_msg = "Cliente eliminado correctamente.";
+            log_activity($link, "elimino", "Clientes", "Elimino cliente #" . $client_id);
         } else {
             if (mysqli_errno($link) == 1451) {
                 $error_msg = "No se puede eliminar: este cliente tiene entregas registradas.";

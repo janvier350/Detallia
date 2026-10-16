@@ -41,16 +41,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "dupli
         $newName   = mb_substr($src["name"] . " (copia)", 0, 150);
         $today     = date("Y-m-d");
         $classId   = $src["classification_id"] !== null ? (int) $src["classification_id"] : null;
+        $kitQty    = max(1, (int) ($src["kit_quantity"] ?? 1));
+        $imagePath = $src["image_path"];
         $notes     = $src["notes"];
         $createdBy = (int) $_SESSION["id"];
-        $ins = mysqli_prepare($link, "INSERT INTO kit_simulations (name, sim_date, classification_id, notes, created_by) VALUES (?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($ins, "ssisi", $newName, $today, $classId, $notes, $createdBy);
+        $ins = mysqli_prepare($link, "INSERT INTO kit_simulations (name, sim_date, classification_id, kit_quantity, image_path, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($ins, "ssiissi", $newName, $today, $classId, $kitQty, $imagePath, $notes, $createdBy);
         mysqli_stmt_execute($ins);
         $newId = mysqli_insert_id($link);
 
         // Copiar items
-        mysqli_query($link, "INSERT INTO kit_simulation_items (simulation_id, product_name, unit_price, iva_rate, quantity, sort_order)
-                             SELECT " . (int) $newId . ", product_name, unit_price, iva_rate, quantity, sort_order
+        mysqli_query($link, "INSERT INTO kit_simulation_items (simulation_id, product_name, provider_id, provider_name, unit_price, iva_rate, quantity, sort_order)
+                             SELECT " . (int) $newId . ", product_name, provider_id, provider_name, unit_price, iva_rate, quantity, sort_order
                              FROM kit_simulation_items WHERE simulation_id = " . (int) $id);
 
         $_SESSION["flash_success"] = "Simulacro duplicado. Ajusta el tipo de cliente o los precios en la copia.";
@@ -65,7 +67,7 @@ if (isset($_SESSION["flash_success"])) {
 }
 
 // Lista con totales calculados
-$rows = mysqli_query($link, "SELECT s.id, s.name, s.sim_date, s.created_at,
+$rows = mysqli_query($link, "SELECT s.id, s.name, s.sim_date, s.created_at, s.kit_quantity, s.image_path,
                                     cl.name AS classification_name,
                                     COALESCE(u.full_name, u.username) AS created_by_name,
                                     COUNT(i.id) AS num_items,
@@ -79,7 +81,25 @@ $rows = mysqli_query($link, "SELECT s.id, s.name, s.sim_date, s.created_at,
                              GROUP BY s.id
                              ORDER BY s.id DESC");
 $sims = [];
-while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
+$simIds = [];
+while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; $simIds[] = (int) $r["id"]; }
+
+// Detalle de productos por simulacro (para el modal de las tarjetas)
+$itemsBySim = [];
+if (!empty($simIds)) {
+    $idList = implode(",", $simIds);
+    $ir = mysqli_query($link, "SELECT simulation_id, product_name, provider_name, unit_price, iva_rate, quantity
+                               FROM kit_simulation_items WHERE simulation_id IN ($idList) ORDER BY sort_order, id");
+    while ($it = mysqli_fetch_assoc($ir)) {
+        $sid = (int) $it["simulation_id"];
+        $itemsBySim[$sid][] = [
+            "product" => $it["product_name"],
+            "provider" => $it["provider_name"],
+            "qty" => (float) $it["quantity"],
+            "total" => (float) $it["unit_price"] * (float) $it["quantity"] * (1 + (float) $it["iva_rate"] / 100),
+        ];
+    }
+}
 ?>
 <?php include 'layouts/head-main.php'; ?>
 
@@ -128,6 +148,10 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                         <p class="text-muted mb-0 small">Compara el costo de un kit para distintos tipos de cliente.</p>
                                     </div>
                                     <div class="d-flex gap-2 flex-wrap">
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-soft-secondary active" id="viewTableBtn" title="Vista tabla"><i class="mdi mdi-table"></i></button>
+                                            <button type="button" class="btn btn-soft-secondary" id="viewCardsBtn" title="Vista tarjetas"><i class="mdi mdi-view-grid-outline"></i></button>
+                                        </div>
                                         <button type="button" id="compareBtn" class="btn btn-soft-info" disabled><i class="mdi mdi-compare-horizontal me-1"></i> Comparar seleccionados (<span id="compareCount">0</span>)</button>
                                         <a href="admin-kit-sim-form.php" class="btn btn-primary"><i class="mdi mdi-plus me-1"></i> Nuevo simulacro</a>
                                     </div>
@@ -136,7 +160,48 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
                                 <?php if (empty($sims)): ?>
                                     <div class="alert alert-info mb-0">Aun no hay simulacros. Crea el primero con "Nuevo simulacro".</div>
                                 <?php else: ?>
-                                <div class="table-responsive">
+
+                                <!-- Vista tarjetas -->
+                                <div id="cardsView" class="row g-3 mb-2" style="display:none;">
+                                    <?php foreach ($sims as $s): $totalKits = $s["total"] * max(1, (int) $s["kit_quantity"]); ?>
+                                    <div class="col-sm-6 col-xl-3">
+                                        <div class="card h-100 border shadow-none mb-0">
+                                            <div style="height:150px;background:#f4f5f8;border-top-left-radius:.5rem;border-top-right-radius:.5rem;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                                                <?php if (!empty($s["image_path"])): ?>
+                                                    <img src="<?php echo htmlspecialchars($s["image_path"]); ?>" alt="Kit" style="width:100%;height:100%;object-fit:cover;">
+                                                <?php else: ?>
+                                                    <i class="mdi mdi-gift-outline" style="font-size:3rem;color:#ced4da;"></i>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <h6 class="mb-1"><?php echo htmlspecialchars($s["name"]); ?></h6>
+                                                    <?php if ($s["classification_name"]): ?><span class="badge bg-primary-subtle text-primary"><?php echo htmlspecialchars($s["classification_name"]); ?></span><?php endif; ?>
+                                                </div>
+                                                <p class="text-muted small mb-2"><?php echo htmlspecialchars(date("d/m/Y", strtotime($s["sim_date"]))); ?> · <?php echo (int) $s["kit_quantity"]; ?> kit(s)</p>
+                                                <div class="d-flex justify-content-between small mb-1">
+                                                    <span class="text-muted">Valor por kit</span>
+                                                    <span class="fw-medium">$<?php echo number_format($s["total"], 2); ?></span>
+                                                </div>
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span class="text-muted small">Valor total</span>
+                                                    <span class="fw-bold text-primary">$<?php echo number_format($totalKits, 2); ?></span>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-soft-secondary w-100 mb-2 view-detail" data-id="<?php echo (int) $s['id']; ?>" data-name="<?php echo htmlspecialchars($s['name'], ENT_QUOTES); ?>">
+                                                    <i class="mdi mdi-format-list-bulleted me-1"></i> Ver <?php echo (int) $s["num_items"]; ?> productos
+                                                </button>
+                                                <div class="d-flex gap-1">
+                                                    <a href="admin-kit-sim-print.php?id=<?php echo (int) $s['id']; ?>" target="_blank" class="btn btn-sm btn-soft-secondary flex-fill"><i class="mdi mdi-printer"></i></a>
+                                                    <a href="admin-kit-sim-form.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-soft-primary flex-fill"><i class="mdi mdi-pencil"></i></a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                <!-- Vista tabla -->
+                                <div class="table-responsive" id="tableView">
                                     <table class="table table-centered table-nowrap mb-0">
                                         <thead class="table-light">
                                             <tr>
@@ -203,33 +268,92 @@ while ($r = mysqli_fetch_assoc($rows)) { $sims[] = $r; }
 </div>
 
 <?php include 'layouts/right-sidebar.php'; ?>
+
+<!-- Modal detalle de productos -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailTitle">Detalle del kit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light"><tr><th>Producto</th><th>Proveedor</th><th class="text-end">Cant.</th><th class="text-end">Total</th></tr></thead>
+                        <tbody id="detailBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
 
 <script>
+var SIM_DETAIL = <?php echo json_encode($itemsBySim, JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+
 (function () {
     var checks = document.querySelectorAll('.sim-check');
     var btn = document.getElementById('compareBtn');
     var count = document.getElementById('compareCount');
-    if (!btn) return;
 
     function selectedIds() {
         return Array.prototype.filter.call(checks, function (c) { return c.checked; })
                     .map(function (c) { return c.value; });
     }
     function update() {
+        if (!btn) return;
         var ids = selectedIds();
         count.innerText = ids.length;
         btn.disabled = ids.length < 2;
     }
     checks.forEach(function (c) { c.addEventListener('change', update); });
-    btn.addEventListener('click', function () {
+    if (btn) btn.addEventListener('click', function () {
         var ids = selectedIds();
-        if (ids.length >= 2) {
-            window.location.href = 'admin-kit-sim-compare.php?ids=' + ids.join(',');
-        }
+        if (ids.length >= 2) window.location.href = 'admin-kit-sim-compare.php?ids=' + ids.join(',');
     });
     update();
+
+    // Toggle tabla / tarjetas
+    var tableView = document.getElementById('tableView');
+    var cardsView = document.getElementById('cardsView');
+    var bT = document.getElementById('viewTableBtn');
+    var bC = document.getElementById('viewCardsBtn');
+    function setView(v) {
+        if (!tableView || !cardsView) return;
+        var cards = v === 'cards';
+        cardsView.style.display = cards ? '' : 'none';
+        tableView.style.display = cards ? 'none' : '';
+        bC.classList.toggle('active', cards);
+        bT.classList.toggle('active', !cards);
+        try { localStorage.setItem('kitsim_view', v); } catch (e) {}
+    }
+    if (bT) bT.addEventListener('click', function () { setView('table'); });
+    if (bC) bC.addEventListener('click', function () { setView('cards'); });
+    try { if (localStorage.getItem('kitsim_view') === 'cards') setView('cards'); } catch (e) {}
+
+    // Modal de detalle
+    function money(n) { return (isNaN(n) ? 0 : n).toFixed(2); }
+    function esc(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    document.querySelectorAll('.view-detail').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            document.getElementById('detailTitle').innerText = this.getAttribute('data-name') || 'Detalle del kit';
+            var items = SIM_DETAIL[id] || [];
+            var html = '';
+            if (!items.length) html = '<tr><td colspan="4" class="text-center text-muted">Sin productos</td></tr>';
+            items.forEach(function (it) {
+                html += '<tr><td>' + esc(it.product) + '</td><td class="text-muted">' + esc(it.provider || '—') + '</td>' +
+                        '<td class="text-end">' + (it.qty % 1 === 0 ? it.qty : it.qty.toFixed(2)) + '</td>' +
+                        '<td class="text-end">$' + money(it.total) + '</td></tr>';
+            });
+            document.getElementById('detailBody').innerHTML = html;
+            new bootstrap.Modal(document.getElementById('detailModal')).show();
+        });
+    });
 })();
 </script>
 

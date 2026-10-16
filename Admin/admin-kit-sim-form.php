@@ -16,7 +16,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
     $sim_date = trim($_POST["sim_date"] ?? "");
     $classId  = (int) ($_POST["classification_id"] ?? 0);
     $classId  = $classId > 0 ? $classId : null;
+    $kitQty   = (int) ($_POST["kit_quantity"] ?? 1);
+    if ($kitQty < 1) $kitQty = 1;
     $notes    = trim($_POST["notes"] ?? "");
+
+    // Imagen del kit (opcional)
+    $new_image_path = null;
+    if (!empty($_FILES["image"]["name"]) && $_FILES["image"]["error"] === UPLOAD_ERR_OK) {
+        $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $ftype = mime_content_type($_FILES["image"]["tmp_name"]);
+        $ext   = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
+        if (!in_array($ftype, $allowed)) {
+            $error_msg = "Solo se permiten imagenes JPG, PNG, GIF o WEBP.";
+        } elseif ($_FILES["image"]["size"] > 3 * 1024 * 1024) {
+            $error_msg = "La imagen no puede superar 3 MB.";
+        } else {
+            $dir = __DIR__ . '/assets/images/kitsims/';
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            $fn = 'kitsim_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (move_uploaded_file($_FILES["image"]["tmp_name"], $dir . $fn)) {
+                $new_image_path = 'assets/images/kitsims/' . $fn;
+            }
+        }
+    }
 
     $products = $_POST["product_name"] ?? [];
     $prices   = $_POST["unit_price"] ?? [];
@@ -29,17 +51,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save"
         $error_msg = "El nombre del simulacro es obligatorio.";
     } elseif ($sim_date === "") {
         $error_msg = "La fecha es obligatoria.";
-    } else {
+    } elseif ($error_msg === "") {
         $editing = $sim_id > 0;
         if ($editing) {
-            $stmt = mysqli_prepare($link, "UPDATE kit_simulations SET name=?, sim_date=?, classification_id=?, notes=? WHERE id=?");
-            mysqli_stmt_bind_param($stmt, "ssisi", $name, $sim_date, $classId, $notes, $sim_id);
+            if ($new_image_path !== null) {
+                $stmt = mysqli_prepare($link, "UPDATE kit_simulations SET name=?, sim_date=?, classification_id=?, kit_quantity=?, image_path=?, notes=? WHERE id=?");
+                mysqli_stmt_bind_param($stmt, "ssiissi", $name, $sim_date, $classId, $kitQty, $new_image_path, $notes, $sim_id);
+            } else {
+                $stmt = mysqli_prepare($link, "UPDATE kit_simulations SET name=?, sim_date=?, classification_id=?, kit_quantity=?, notes=? WHERE id=?");
+                mysqli_stmt_bind_param($stmt, "ssiisi", $name, $sim_date, $classId, $kitQty, $notes, $sim_id);
+            }
             mysqli_stmt_execute($stmt);
             mysqli_query($link, "DELETE FROM kit_simulation_items WHERE simulation_id = " . (int) $sim_id);
         } else {
             $createdBy = (int) $_SESSION["id"];
-            $stmt = mysqli_prepare($link, "INSERT INTO kit_simulations (name, sim_date, classification_id, notes, created_by) VALUES (?, ?, ?, ?, ?)");
-            mysqli_stmt_bind_param($stmt, "ssisi", $name, $sim_date, $classId, $notes, $createdBy);
+            $stmt = mysqli_prepare($link, "INSERT INTO kit_simulations (name, sim_date, classification_id, kit_quantity, image_path, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            mysqli_stmt_bind_param($stmt, "ssiissi", $name, $sim_date, $classId, $kitQty, $new_image_path, $notes, $createdBy);
             mysqli_stmt_execute($stmt);
             $sim_id = mysqli_insert_id($link);
         }
@@ -144,7 +171,7 @@ $isEdit = $sim_id > 0;
                     <div class="alert alert-danger"><?php echo htmlspecialchars($error_msg); ?></div>
                 <?php endif; ?>
 
-                <form method="post">
+                <form method="post" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="save">
 
                     <!-- Cabecera -->
@@ -173,6 +200,22 @@ $isEdit = $sim_id > 0;
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Cantidad de kits</label>
+                                    <input type="number" name="kit_quantity" id="kitQty" class="form-control" min="1" step="1"
+                                           value="<?php echo (int) ($sim["kit_quantity"] ?? 1); ?>">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Imagen del kit (como queda)</label>
+                                    <input type="file" name="image" class="form-control" accept="image/*">
+                                    <div class="form-text">JPG, PNG, GIF o WEBP (max 3 MB).</div>
+                                </div>
+                                <?php if (!empty($sim["image_path"])): ?>
+                                <div class="col-md-4 text-center">
+                                    <img src="<?php echo htmlspecialchars($sim["image_path"]); ?>" alt="Kit" style="max-height:90px;border-radius:8px;border:1px solid #eee;">
+                                    <div class="small text-muted">Imagen actual</div>
+                                </div>
+                                <?php endif; ?>
                                 <div class="col-12">
                                     <label class="form-label">Notas</label>
                                     <textarea name="notes" class="form-control" rows="2"><?php echo htmlspecialchars($sim["notes"] ?? ""); ?></textarea>
@@ -209,14 +252,19 @@ $isEdit = $sim_id > 0;
                                     <tbody id="itemsBody"><!-- filas por JS --></tbody>
                                     <tfoot>
                                         <tr class="table-light">
-                                            <th colspan="5" class="text-end">Totales</th>
+                                            <th colspan="5" class="text-end">Total por kit</th>
                                             <th class="text-end"><span id="grandSubtotal">0.00</span></th>
                                             <th class="text-end"><span id="grandTotal">0.00</span></th>
                                             <th></th>
                                         </tr>
+                                        <tr class="table-light">
+                                            <th colspan="6" class="text-end">Total x <span id="kitQtyLbl">1</span> kit(s)</th>
+                                            <th class="text-end text-primary">$<span id="grandTotalKits">0.00</span></th>
+                                            <th></th>
+                                        </tr>
                                         <tr>
                                             <td colspan="8" class="text-end small text-muted">
-                                                IVA total: <span id="grandIva">0.00</span>
+                                                IVA total (por kit): <span id="grandIva">0.00</span>
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -320,7 +368,13 @@ function recalc() {
     document.getElementById('grandSubtotal').innerText = money(subtotalSum);
     document.getElementById('grandIva').innerText = money(ivaSum);
     document.getElementById('grandTotal').innerText = money(totalSum);
+    var kq = parseInt(document.getElementById('kitQty').value) || 1;
+    if (kq < 1) kq = 1;
+    document.getElementById('kitQtyLbl').innerText = kq;
+    document.getElementById('grandTotalKits').innerText = money(totalSum * kq);
 }
+
+document.getElementById('kitQty').addEventListener('input', recalc);
 
 document.getElementById('addRowBtn').addEventListener('click', function () { addRow(); });
 

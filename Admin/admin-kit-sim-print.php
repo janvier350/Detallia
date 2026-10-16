@@ -88,7 +88,15 @@ while ($r = mysqli_fetch_assoc($ri)) {
             <div class="label">Elaborado por</div>
             <div class="val"><?php echo htmlspecialchars($sim["created_by_name"] ?? "—"); ?></div>
         </div>
+        <div>
+            <div class="label">Cantidad de kits</div>
+            <div class="val"><?php echo (int) ($sim["kit_quantity"] ?? 1); ?></div>
+        </div>
     </div>
+
+    <?php if (!empty($sim["image_path"])): ?>
+        <img src="<?php echo htmlspecialchars($sim["image_path"]); ?>" alt="Kit" style="max-height:160px;border-radius:8px;border:1px solid #e2e5ec;margin-bottom:16px;">
+    <?php endif; ?>
 
     <table class="items">
         <thead>
@@ -124,7 +132,9 @@ while ($r = mysqli_fetch_assoc($ri)) {
     <div class="totbox">
         <div class="line"><span>Subtotal</span><span>$<?php echo number_format($subtotalSum, 2); ?></span></div>
         <div class="line"><span>IVA</span><span>$<?php echo number_format($ivaSum, 2); ?></span></div>
-        <div class="line grand"><span>Total</span><span>$<?php echo number_format($totalSum, 2); ?></span></div>
+        <div class="line"><span>Total por kit</span><span>$<?php echo number_format($totalSum, 2); ?></span></div>
+        <?php $kq = max(1, (int) ($sim["kit_quantity"] ?? 1)); ?>
+        <div class="line grand"><span>Total x <?php echo $kq; ?> kit(s)</span><span>$<?php echo number_format($totalSum * $kq, 2); ?></span></div>
     </div>
 
     <?php if (!empty($sim["notes"])): ?>

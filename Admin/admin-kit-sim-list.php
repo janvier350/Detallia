@@ -187,7 +187,7 @@ if (!empty($simIds)) {
                                                     <span class="text-muted small">Valor total</span>
                                                     <span class="fw-bold text-primary">$<?php echo number_format($totalKits, 2); ?></span>
                                                 </div>
-                                                <button type="button" class="btn btn-sm btn-soft-secondary w-100 mb-2 view-detail" data-id="<?php echo (int) $s['id']; ?>" data-name="<?php echo htmlspecialchars($s['name'], ENT_QUOTES); ?>">
+                                                <button type="button" class="btn btn-sm btn-soft-secondary w-100 mb-2 view-detail" data-id="<?php echo (int) $s['id']; ?>" data-name="<?php echo htmlspecialchars($s['name'], ENT_QUOTES); ?>" data-image="<?php echo htmlspecialchars($s['image_path'] ?? '', ENT_QUOTES); ?>">
                                                     <i class="mdi mdi-format-list-bulleted me-1"></i> Ver <?php echo (int) $s["num_items"]; ?> productos
                                                 </button>
                                                 <div class="d-flex gap-1">
@@ -278,6 +278,9 @@ if (!empty($simIds)) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div id="detailImageWrap" class="text-center mb-3" style="display:none;">
+                    <img id="detailImage" src="" alt="Kit" style="max-height:220px;max-width:100%;border-radius:8px;border:1px solid #eee;">
+                </div>
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
                         <thead class="table-light"><tr><th>Producto</th><th>Proveedor</th><th class="text-end">Cant.</th><th class="text-end">Total</th></tr></thead>
@@ -342,6 +345,10 @@ var SIM_DETAIL = <?php echo json_encode($itemsBySim, JSON_HEX_APOS | JSON_HEX_QU
         b.addEventListener('click', function () {
             var id = this.getAttribute('data-id');
             document.getElementById('detailTitle').innerText = this.getAttribute('data-name') || 'Detalle del kit';
+            var img = this.getAttribute('data-image');
+            var wrap = document.getElementById('detailImageWrap');
+            if (img) { document.getElementById('detailImage').src = img; wrap.style.display = ''; }
+            else { wrap.style.display = 'none'; }
             var items = SIM_DETAIL[id] || [];
             var html = '';
             if (!items.length) html = '<tr><td colspan="4" class="text-center text-muted">Sin productos</td></tr>';

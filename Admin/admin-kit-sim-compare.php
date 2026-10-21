@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3, 5]);
+require_role([1, 2, 6, 3, 5]);
 
 // ids=1,2,3
 $idsRaw = trim($_GET["ids"] ?? "");

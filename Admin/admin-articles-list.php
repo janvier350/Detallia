@@ -3,9 +3,10 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3, 5]);
+require_role([1, 2, 6, 3, 5]);
 
-$can_edit = in_array((int) $_SESSION["role_id"], [1, 2], true);
+$can_edit = in_array((int) $_SESSION["role_id"], [1, 2, 6], true);
+$can_delete = in_array((int) $_SESSION["role_id"], [1, 2], true); // Editor (6) NO puede eliminar
 
 $success_msg = "";
 $error_msg = "";
@@ -116,7 +117,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // ---------------------------------------------------------------
 // ELIMINAR articulo
 // ---------------------------------------------------------------
-if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
+if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $article_id = (int) ($_POST["id"] ?? 0);
     if ($article_id > 0) {
         // Borrar imagen si tiene
@@ -351,6 +352,7 @@ if ($params) {
                                                             onclick='openEditModal(<?php echo json_encode($a, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
                                                             <i class="mdi mdi-pencil"></i>
                                                         </button>
+                                                        <?php if ($can_delete): ?>
                                                         <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este articulo?');">
                                                             <input type="hidden" name="action" value="delete">
                                                             <input type="hidden" name="id" value="<?php echo (int) $a["id"]; ?>">
@@ -358,6 +360,7 @@ if ($params) {
                                                                 <i class="mdi mdi-delete"></i>
                                                             </button>
                                                         </form>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <?php endif; ?>
                                                 </tr>

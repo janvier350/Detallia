@@ -4,7 +4,7 @@ require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
 require_once 'layouts/mailer.php';
-require_role([1, 2]);
+require_role([1, 2, 6]);
 
 $success_msg = "";
 $error_msg = "";

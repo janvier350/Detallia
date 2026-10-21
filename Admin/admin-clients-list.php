@@ -3,9 +3,10 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3, 5]);
+require_role([1, 2, 6, 3, 5]);
 
-$can_edit = in_array((int) $_SESSION["role_id"], [1, 2, 5], true);
+$can_edit = in_array((int) $_SESSION["role_id"], [1, 2, 5, 6], true);
+$can_delete = in_array((int) $_SESSION["role_id"], [1, 2, 5], true); // Editor (6) NO puede eliminar
 
 $success_msg = "";
 $error_msg = "";
@@ -67,7 +68,7 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 // ---------------------------------------------------------------
 // ELIMINAR cliente
 // ---------------------------------------------------------------
-if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
+if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $client_id = (int) ($_POST["id"] ?? 0);
     if ($client_id > 0) {
         $sql  = "DELETE FROM clients WHERE id = ?";
@@ -338,6 +339,7 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                             onclick='openEditModal(<?php echo json_encode($c, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
                                                             <i class="mdi mdi-pencil"></i>
                                                         </button>
+                                                        <?php if ($can_delete): ?>
                                                         <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar este cliente?');">
                                                             <input type="hidden" name="action" value="delete">
                                                             <input type="hidden" name="id" value="<?php echo (int) $c["id"]; ?>">
@@ -345,6 +347,7 @@ $classifications_list = mysqli_query($link, "SELECT id, name FROM client_classif
                                                                 <i class="mdi mdi-delete"></i>
                                                             </button>
                                                         </form>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <?php endif; ?>
                                                 </tr>

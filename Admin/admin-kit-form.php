@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2]);
+require_role([1, 2, 6]);
 
 $kit_id    = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 $error_msg = "";

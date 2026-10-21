@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3]); // Todos los roles pueden registrar compras
+require_role([1, 2, 6, 3]); // Todos los roles pueden registrar compras
 
 $invoice_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 $error_msg = "";

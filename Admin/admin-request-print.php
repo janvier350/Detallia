@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3, 4]);
+require_role([1, 2, 6, 3, 4]);
 
 $is_solicitante = (int) $_SESSION["role_id"] === 4;
 

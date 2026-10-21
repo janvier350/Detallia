@@ -3,7 +3,7 @@ include 'layouts/session.php';
 require_once 'layouts/config.php';
 require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
-require_role([1, 2, 3]);
+require_role([1, 2, 6, 3]);
 
 // Las entregas son registros de auditoria: una vez guardadas no se pueden
 // editar, por lo que esta pagina solo admite el registro de entregas nuevas.

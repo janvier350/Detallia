@@ -9,6 +9,15 @@ MySQL, solo estructura (sin datos), listo para generar el DER en MySQL Workbench
 |---|---|
 | `Detallia_mysql_01_estructura.sql` | Base de datos completa: `CREATE DATABASE detallia`, 29 tablas (InnoDB, utf8mb4) agrupadas por módulo y **46 llaves foráneas declaradas** al final. **Obligatorio.** |
 | `Detallia_mysql_02_relaciones_logicas.sql` | **Opcional.** 2 relaciones que la app usa por nombre pero que la base no declara (papelera→usuario, ítem de simulador→proveedor). Cada una en su propio `ALTER TABLE`, por si quieres omitir alguna. |
+| `Detallia_DER.png` / `Detallia_DER.svg` | Imagen del DER ya generada (29 tablas, color por módulo, 🔑 PK y 🔗 FK). Útil si no quieres abrir Workbench. El PNG es para ver/imprimir; el SVG escala sin perder nitidez. |
+
+## Diagrama ya generado
+
+![DER de Detallia](Detallia_DER.png)
+
+Las imágenes `Detallia_DER.png` / `.svg` se generaron automáticamente desde
+`Detallia_mysql_01_estructura.sql`. Para el DER editable e interactivo (mover
+tablas, exportar a otros formatos) usa MySQL Workbench como se indica abajo.
 
 ## Cómo generar el DER en MySQL Workbench
 

@@ -59,11 +59,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["a
 if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $brand_id = (int) ($_POST["id"] ?? 0);
     if ($brand_id > 0) {
+        $snap = snapshot_record($link, "brands", $brand_id);
+        $lbl  = $snap ? ($snap['parent']['name'] ?? ('#' . $brand_id)) : ('#' . $brand_id);
         $sql  = "DELETE FROM brands WHERE id = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "i", $brand_id);
         if (mysqli_stmt_execute($stmt)) {
-            $success_msg = "Marca eliminada correctamente.";
+            archive_snapshot($link, "Marcas", "brands", $brand_id, $lbl, $snap);
+            $success_msg = "Marca eliminada correctamente. Puedes recuperarla desde la Papelera.";
             log_activity($link, "elimino", "Marcas", "Elimino marca #" . $brand_id);
         } else {
             if (mysqli_errno($link) == 1451) {

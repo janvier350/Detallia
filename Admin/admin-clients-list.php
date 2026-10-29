@@ -71,11 +71,14 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $client_id = (int) ($_POST["id"] ?? 0);
     if ($client_id > 0) {
+        $snap = snapshot_record($link, "clients", $client_id);
+        $lbl  = $snap ? trim(($snap['parent']['name'] ?? '') . ' / ' . ($snap['parent']['contact_name'] ?? '')) : ('#' . $client_id);
         $sql  = "DELETE FROM clients WHERE id = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "i", $client_id);
         if (mysqli_stmt_execute($stmt)) {
-            $success_msg = "Cliente eliminado correctamente.";
+            archive_snapshot($link, "Clientes", "clients", $client_id, $lbl, $snap);
+            $success_msg = "Cliente eliminado correctamente. Puedes recuperarlo desde la Papelera.";
             log_activity($link, "elimino", "Clientes", "Elimino cliente #" . $client_id);
         } else {
             if (mysqli_errno($link) == 1451) {

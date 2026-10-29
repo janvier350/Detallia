@@ -57,11 +57,14 @@ if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"])
 if ($can_edit && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $provider_id = (int) ($_POST["id"] ?? 0);
     if ($provider_id > 0) {
+        $snap = snapshot_record($link, "providers", $provider_id);
+        $lbl  = $snap ? ($snap['parent']['name'] ?? ('#' . $provider_id)) : ('#' . $provider_id);
         $sql = "DELETE FROM providers WHERE id = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "i", $provider_id);
         if (mysqli_stmt_execute($stmt)) {
-            $success_msg = "Proveedor eliminado correctamente.";
+            archive_snapshot($link, "Proveedores", "providers", $provider_id, $lbl, $snap);
+            $success_msg = "Proveedor eliminado correctamente. Puedes recuperarlo desde la Papelera.";
             log_activity($link, "elimino", "Proveedores", "Elimino proveedor #" . $provider_id);
         } else {
             if (mysqli_errno($link) == 1451) {

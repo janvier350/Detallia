@@ -14,11 +14,15 @@ $success_msg = "";
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "delete") {
     $id = (int) ($_POST["id"] ?? 0);
     if ($id > 0) {
-        // items se borran en cascada
+        // Guardamos copia en la papelera antes de borrar (items se borran en cascada)
+        $snap = snapshot_record($link, "kit_simulations", $id, [['table' => 'kit_simulation_items', 'fk' => 'simulation_id']]);
+        $lbl  = $snap ? ($snap['parent']['name'] ?? ('#' . $id)) : ('#' . $id);
         $stmt = mysqli_prepare($link, "DELETE FROM kit_simulations WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
-        mysqli_stmt_execute($stmt);
-        $_SESSION["flash_success"] = "Simulacro eliminado.";
+        if (mysqli_stmt_execute($stmt)) {
+            archive_snapshot($link, "Simulador de kits", "kit_simulations", $id, $lbl, $snap);
+        }
+        $_SESSION["flash_success"] = "Simulacro eliminado. Puedes recuperarlo desde la Papelera.";
         log_activity($link, "elimino", "Simulador de kits", "Elimino simulacro #" . $id);
         header("location: admin-kit-sim-list.php");
         exit;

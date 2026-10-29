@@ -120,3 +120,125 @@ function diff_detail($old, $new, $labels)
     }
     return implode('; ', $parts);
 }
+
+// =====================================================================
+// Papelera / restaurar eliminados
+// =====================================================================
+
+// Toma una "foto" completa de un registro (fila padre + filas hijas)
+// ANTES de eliminarlo. $children = [['table'=>'kit_items','fk'=>'kit_id'], ...]
+// Devuelve un arreglo listo para guardar, o null si el registro no existe.
+function snapshot_record($link, $table, $id, $children = [])
+{
+    $id = (int) $id;
+    $res = mysqli_query($link, "SELECT * FROM `" . $table . "` WHERE id = " . $id);
+    if (!$res) return null;
+    $parent = mysqli_fetch_assoc($res);
+    if (!$parent) return null;
+
+    $kids = [];
+    foreach ($children as $c) {
+        $ct = $c['table'];
+        $fk = $c['fk'];
+        $cr = mysqli_query($link, "SELECT * FROM `" . $ct . "` WHERE `" . $fk . "` = " . $id);
+        $rows = [];
+        if ($cr) {
+            while ($row = mysqli_fetch_assoc($cr)) {
+                $rows[] = $row;
+            }
+        }
+        $kids[$ct] = ['fk' => $fk, 'rows' => $rows];
+    }
+
+    return ['parent' => $parent, 'children' => $kids];
+}
+
+// Guarda la foto en la papelera (deleted_records). Se llama DESPUES de que
+// el DELETE fue exitoso. Nunca interrumpe el flujo si algo falla.
+function archive_snapshot($link, $module, $table, $id, $label, $snapshot)
+{
+    if (!$link || !$snapshot) return;
+    $json = json_encode($snapshot, JSON_UNESCAPED_UNICODE);
+    if ($json === false) return;
+
+    $by      = isset($_SESSION['id']) ? (int) $_SESSION['id'] : null;
+    $by_name = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? null);
+    $id      = (int) $id;
+
+    $stmt = mysqli_prepare($link, "INSERT INTO deleted_records
+        (module, table_name, record_id, label, data, deleted_by, deleted_by_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?)");
+    if (!$stmt) return;
+    mysqli_stmt_bind_param($stmt, "ssissis", $module, $table, $id, $label, $json, $by, $by_name);
+    @mysqli_stmt_execute($stmt);
+}
+
+// Construye la lista de columnas y placeholders para un INSERT a partir de una fila.
+function _cols_placeholders($row)
+{
+    $cols = array_keys($row);
+    $quoted = array_map(function ($c) { return "`" . $c . "`"; }, $cols);
+    $ph = implode(', ', array_fill(0, count($cols), '?'));
+    return [implode(', ', $quoted), $ph, array_values($row)];
+}
+
+// Inserta una fila (arreglo asociativo) en una tabla usando prepared statement.
+function _insert_row($link, $table, $row)
+{
+    list($colsSql, $ph, $vals) = _cols_placeholders($row);
+    $sql = "INSERT INTO `" . $table . "` (" . $colsSql . ") VALUES (" . $ph . ")";
+    $stmt = mysqli_prepare($link, $sql);
+    if (!$stmt) return false;
+    $types = str_repeat('s', count($vals));
+    $bind = [];
+    $bind[] = $types;
+    foreach ($vals as $k => $v) {
+        $bind[] = &$vals[$k];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bind);
+    return mysqli_stmt_execute($stmt);
+}
+
+// Restaura un registro archivado: reinserta la fila padre (con su id original)
+// y sus filas hijas. Devuelve [ok(bool), mensaje(string)].
+function restore_record($link, $archiveId)
+{
+    $archiveId = (int) $archiveId;
+    $res = mysqli_query($link, "SELECT * FROM deleted_records WHERE id = " . $archiveId . " AND restored = 0");
+    $arc = $res ? mysqli_fetch_assoc($res) : null;
+    if (!$arc) return [false, "Registro no encontrado o ya restaurado."];
+
+    $snap = json_decode($arc['data'], true);
+    if (!$snap || empty($snap['parent'])) return [false, "No se pudo leer la copia guardada."];
+
+    $table = $arc['table_name'];
+    $recId = (int) $arc['record_id'];
+
+    // Si ya existe un registro con ese id, no reinsertamos el padre.
+    $exists = mysqli_query($link, "SELECT 1 FROM `" . $table . "` WHERE id = " . $recId);
+    $already = $exists && mysqli_fetch_row($exists);
+
+    mysqli_begin_transaction($link);
+    try {
+        if (!$already) {
+            if (!_insert_row($link, $table, $snap['parent'])) {
+                throw new Exception("No se pudo restaurar el registro principal: " . mysqli_error($link));
+            }
+        }
+        foreach (($snap['children'] ?? []) as $ctable => $info) {
+            foreach (($info['rows'] ?? []) as $crow) {
+                _insert_row($link, $ctable, $crow);
+            }
+        }
+        $by_name = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? null);
+        $u = mysqli_prepare($link, "UPDATE deleted_records SET restored = 1, restored_at = NOW(), restored_by_name = ? WHERE id = ?");
+        mysqli_stmt_bind_param($u, "si", $by_name, $archiveId);
+        mysqli_stmt_execute($u);
+        mysqli_commit($link);
+    } catch (Exception $e) {
+        mysqli_rollback($link);
+        return [false, $e->getMessage()];
+    }
+
+    return [true, $already ? "El registro ya existia; se restauraron sus datos relacionados." : "Registro restaurado correctamente."];
+}

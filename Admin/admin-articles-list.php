@@ -127,11 +127,14 @@ if ($can_delete && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"
             if (file_exists($oldfile)) @unlink($oldfile);
         }
 
+        $snap = snapshot_record($link, "articles", $article_id);
+        $lbl  = $snap ? ($snap['parent']['name'] ?? ('#' . $article_id)) : ('#' . $article_id);
         $sql  = "DELETE FROM articles WHERE id = ?";
         $stmt = mysqli_prepare($link, $sql);
         mysqli_stmt_bind_param($stmt, "i", $article_id);
         if (mysqli_stmt_execute($stmt)) {
-            $success_msg = "Articulo eliminado correctamente.";
+            archive_snapshot($link, "Articulos", "articles", $article_id, $lbl, $snap);
+            $success_msg = "Articulo eliminado correctamente. Puedes recuperarlo desde la Papelera.";
             log_activity($link, "elimino", "Articulos", "Elimino articulo #" . $article_id);
         } else {
             if (mysqli_errno($link) == 1451) {

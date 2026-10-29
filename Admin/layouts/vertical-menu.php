@@ -312,6 +312,15 @@ $pendingRequestsCount = count($pendingRequests);
                 </li>
                 <?php endif; ?>
 
+                <?php if (isset($_SESSION["role_id"]) && in_array((int) $_SESSION["role_id"], [1, 2], true)): ?>
+                <li>
+                    <a href="admin-recycle-bin.php">
+                        <i data-feather="trash-2"></i>
+                        <span>Papelera</span>
+                    </a>
+                </li>
+                <?php endif; ?>
+
                 <li>
                     <a href="admin-providers-list.php">
                         <i data-feather="truck"></i>

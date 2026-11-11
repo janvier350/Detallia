@@ -7,11 +7,19 @@ require_role([1, 2, 6, 3, 4]);
 
 $is_solicitante = (int) $_SESSION["role_id"] === 4;
 $can_dispatch   = !$is_solicitante;
+// Solo Administrador y Jefe pueden eliminar una solicitud YA despachada
+// (revirtiendo su efecto en inventario). El resto solo elimina pendientes.
+$can_delete_dispatched = in_array((int) $_SESSION["role_id"], [1, 2], true);
 
 $success_msg = "";
 if (isset($_SESSION["flash_success"])) {
     $success_msg = $_SESSION["flash_success"];
     unset($_SESSION["flash_success"]);
+}
+$error_msg = "";
+if (isset($_SESSION["flash_error"])) {
+    $error_msg = $_SESSION["flash_error"];
+    unset($_SESSION["flash_error"]);
 }
 
 // Las solicitudes ya despachadas son registros de auditoria: no se pueden
@@ -75,14 +83,44 @@ if ($can_dispatch && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["actio
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "delete") {
     $request_id = (int) ($_POST["id"] ?? 0);
     if ($request_id > 0) {
-        $sql = "DELETE FROM requests WHERE id = ? AND status = 'pendiente'";
-        if ($is_solicitante) {
-            $sql .= " AND requested_by = " . (int) $_SESSION["id"];
+        // Conocer el estado actual para saber si hay que revertir inventario.
+        $stStmt = mysqli_prepare($link, "SELECT status FROM requests WHERE id = ?");
+        mysqli_stmt_bind_param($stStmt, "i", $request_id);
+        mysqli_stmt_execute($stStmt);
+        $estado = mysqli_fetch_assoc(mysqli_stmt_get_result($stStmt))["status"] ?? null;
+
+        // Permisos: una solicitud despachada solo la borra Admin/Jefe.
+        $permitido = ($estado === "pendiente") || ($estado === "despachado" && $can_delete_dispatched);
+
+        if ($permitido) {
+            // Si estaba despachada, eliminar primero sus movimientos de salida
+            // para devolver el inventario a su estado anterior (no afectarlo).
+            if ($estado === "despachado") {
+                $delMov = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type = 'solicitud' AND reference_id = ?");
+                mysqli_stmt_bind_param($delMov, "i", $request_id);
+                mysqli_stmt_execute($delMov);
+            }
+
+            $sql = "DELETE FROM requests WHERE id = ?";
+            if ($is_solicitante) {
+                // El solicitante solo borra sus propias solicitudes (y solo pendientes).
+                $sql .= " AND requested_by = " . (int) $_SESSION["id"] . " AND status = 'pendiente'";
+            }
+            $stmt = mysqli_prepare($link, $sql);
+            mysqli_stmt_bind_param($stmt, "i", $request_id);
+            mysqli_stmt_execute($stmt);
+
+            if (mysqli_stmt_affected_rows($stmt) > 0) {
+                log_activity($link, "elimino", "Solicitudes", "Elimino solicitud #" . $request_id . ($estado === "despachado" ? " (despachada, se revirtio inventario)" : ""));
+                $_SESSION["flash_success"] = ($estado === "despachado")
+                    ? "Solicitud eliminada. Se revirtio su salida de inventario."
+                    : "Solicitud eliminada correctamente.";
+            } else {
+                $_SESSION["flash_error"] = "No se pudo eliminar la solicitud.";
+            }
+        } else {
+            $_SESSION["flash_error"] = "No tienes permiso para eliminar una solicitud despachada.";
         }
-        $stmt = mysqli_prepare($link, $sql);
-        mysqli_stmt_bind_param($stmt, "i", $request_id);
-        mysqli_stmt_execute($stmt);
-        $_SESSION["flash_success"] = "Solicitud eliminada correctamente.";
         header("location: admin-requests-list.php");
         exit;
     }
@@ -152,6 +190,12 @@ while ($row = mysqli_fetch_assoc($res)) {
                 <?php if ($success_msg): ?>
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
                         <?php echo htmlspecialchars($success_msg); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+                <?php if ($error_msg): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($error_msg); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <?php endif; ?>
@@ -228,11 +272,18 @@ while ($row = mysqli_fetch_assoc($res)) {
                                                                 </button>
                                                             </form>
                                                         <?php endif; ?>
-                                                        <?php if ($r["status"] === "pendiente"): ?>
-                                                            <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar esta solicitud pendiente?');">
+                                                        <?php
+                                                        $es_despachada = $r["status"] === "despachado";
+                                                        $puede_borrar  = ($r["status"] === "pendiente") || ($es_despachada && $can_delete_dispatched);
+                                                        $confirm_txt   = $es_despachada
+                                                            ? '¿Eliminar esta solicitud despachada? Se revertira su salida de inventario.'
+                                                            : '¿Eliminar esta solicitud pendiente?';
+                                                        ?>
+                                                        <?php if ($puede_borrar): ?>
+                                                            <form method="post" class="d-inline" onsubmit="return confirm('<?php echo $confirm_txt; ?>');">
                                                                 <input type="hidden" name="action" value="delete">
                                                                 <input type="hidden" name="id" value="<?php echo (int) $r["id"]; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-soft-danger">
+                                                                <button type="submit" class="btn btn-sm btn-soft-danger" title="<?php echo $es_despachada ? 'Eliminar (revierte inventario)' : 'Eliminar'; ?>">
                                                                     <i class="mdi mdi-delete"></i>
                                                                 </button>
                                                             </form>

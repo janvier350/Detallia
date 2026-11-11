@@ -20,10 +20,53 @@ if (isset($_SESSION["flash_success"])) {
 if ($can_dispatch && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["action"]) && $_POST["action"] === "dispatch") {
     $request_id = (int) ($_POST["id"] ?? 0);
     if ($request_id > 0) {
-        $stmt = mysqli_prepare($link, "UPDATE requests SET status = 'despachado' WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, "i", $request_id);
-        mysqli_stmt_execute($stmt);
-        $_SESSION["flash_success"] = "Solicitud marcada como despachada.";
+        // Solo descontamos inventario en la transicion pendiente -> despachado,
+        // para no duplicar movimientos si se reenvia el formulario.
+        $upd = mysqli_prepare($link, "UPDATE requests SET status = 'despachado' WHERE id = ? AND status = 'pendiente'");
+        mysqli_stmt_bind_param($upd, "i", $request_id);
+        mysqli_stmt_execute($upd);
+        $changed = mysqli_stmt_affected_rows($upd) > 0;
+
+        if ($changed) {
+            // Reunir los articulos a descontar: items tipo 'articulo' en forma
+            // directa y items tipo 'kit' expandiendo sus articulos * cantidad.
+            $deductions = []; // article_id => cantidad total a descontar
+            $itemsRes = mysqli_prepare($link, "SELECT item_type, article_id, kit_id, quantity FROM request_items WHERE request_id = ?");
+            mysqli_stmt_bind_param($itemsRes, "i", $request_id);
+            mysqli_stmt_execute($itemsRes);
+            $items = mysqli_stmt_get_result($itemsRes);
+            while ($it = mysqli_fetch_assoc($items)) {
+                $qty = (float) $it["quantity"];
+                if ($it["item_type"] === "articulo" && $it["article_id"]) {
+                    $aid = (int) $it["article_id"];
+                    $deductions[$aid] = ($deductions[$aid] ?? 0) + $qty;
+                } elseif ($it["item_type"] === "kit" && $it["kit_id"]) {
+                    $kitRes = mysqli_prepare($link, "SELECT article_id, quantity FROM kit_items WHERE kit_id = ?");
+                    mysqli_stmt_bind_param($kitRes, "i", $it["kit_id"]);
+                    mysqli_stmt_execute($kitRes);
+                    $kitItems = mysqli_stmt_get_result($kitRes);
+                    while ($ki = mysqli_fetch_assoc($kitItems)) {
+                        $aid = (int) $ki["article_id"];
+                        $deductions[$aid] = ($deductions[$aid] ?? 0) + ((float) $ki["quantity"] * $qty);
+                    }
+                }
+            }
+
+            // Registrar un movimiento de salida (negativo) por cada articulo.
+            if ($deductions) {
+                $by = (int) $_SESSION["id"];
+                $movStmt = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'solicitud', ?, 'solicitud', ?, ?)");
+                foreach ($deductions as $aid => $total) {
+                    $neg = -1 * (float) $total;
+                    mysqli_stmt_bind_param($movStmt, "idii", $aid, $neg, $request_id, $by);
+                    mysqli_stmt_execute($movStmt);
+                }
+            }
+            log_activity($link, "despacho", "Solicitudes", "Despacho solicitud #" . $request_id . " y desconto inventario");
+            $_SESSION["flash_success"] = "Solicitud despachada e inventario descontado.";
+        } else {
+            $_SESSION["flash_success"] = "Solicitud marcada como despachada.";
+        }
         header("location: admin-requests-list.php");
         exit;
     }

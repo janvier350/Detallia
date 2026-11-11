@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS `kit_deliveries` (
 CREATE TABLE IF NOT EXISTS `stock_movements` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `article_id` INT NOT NULL,
-  `movement_type` ENUM('compra','entrega','ajuste','devolucion') NOT NULL,
+  `movement_type` ENUM('compra','entrega','ajuste','devolucion','solicitud') NOT NULL,
   `quantity` DECIMAL(10,2) NOT NULL COMMENT 'Positivo = entrada, negativo = salida',
   `reference_type` VARCHAR(30) DEFAULT NULL,
   `reference_id` INT DEFAULT NULL,

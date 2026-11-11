@@ -114,6 +114,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                             <option value="entrega" <?php echo $filter_type === "entrega" ? "selected" : ""; ?>>Entrega (salida)</option>
                                             <option value="ajuste" <?php echo $filter_type === "ajuste" ? "selected" : ""; ?>>Ajuste</option>
                                             <option value="devolucion" <?php echo $filter_type === "devolucion" ? "selected" : ""; ?>>Devolucion (entrada)</option>
+                                            <option value="solicitud" <?php echo $filter_type === "solicitud" ? "selected" : ""; ?>>Solicitud (salida)</option>
                                         </select>
                                     </div>
                                     <?php if ($filter_article || $filter_type): ?>
@@ -146,6 +147,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                                         'entrega' => 'Entrega #' . (int) $m["reference_id"],
                                                         'ajuste' => 'Ajuste manual',
                                                         'devolucion' => 'Devolucion #' . (int) $m["reference_id"],
+                                                        'solicitud' => 'Solicitud #' . (int) $m["reference_id"],
                                                     ][$m["movement_type"]] ?? '—';
                                                 ?>
                                                 <tr>

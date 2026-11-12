@@ -191,7 +191,9 @@ foreach ($deductByArticle as $aid => $tot) {
                 <div class="row">
                     <div class="col-12">
                         <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-                            <h4 class="mb-sm-0 font-size-18">Informe: inventario pendiente por solicitudes</h4>
+                            <h4 class="mb-sm-0 font-size-18">Informe: inventario pendiente por solicitudes
+                                <span class="badge bg-secondary align-middle" style="font-size:11px;">build: apply-v2</span>
+                            </h4>
                             <div class="page-title-right">
                                 <ol class="breadcrumb m-0">
                                     <li class="breadcrumb-item"><a href="index.php">Detallia</a></li>
@@ -222,12 +224,13 @@ foreach ($deductByArticle as $aid => $tot) {
                         <strong>solo</strong> de las solicitudes despachadas que aún no lo hicieron (las de este informe).
                         No se duplica si vuelves a aplicarlo.
                     </div>
-                    <?php if (!empty($pendingRequests)): ?>
-                    <form method="post" class="ms-auto" onsubmit="return confirm('Se descontará el inventario de <?php echo count($pendingRequests); ?> solicitud(es) despachada(s). ¿Aplicar el ajuste ahora?');">
+                    <?php $hay_que_ajustar = !empty($deductByArticle) || !empty($pendingRequests); ?>
+                    <?php if ($hay_que_ajustar): ?>
+                    <form method="post" class="ms-auto" onsubmit="return confirm('Se descontará el inventario de las solicitudes despachadas pendientes. ¿Aplicar el ajuste ahora?');">
                         <input type="hidden" name="action" value="apply">
                         <input type="hidden" name="desde" value="<?php echo htmlspecialchars($desde); ?>">
                         <button type="submit" class="btn btn-danger">
-                            <i class="mdi mdi-check-decagram me-1"></i> Aplicar ajuste (<?php echo count($pendingRequests); ?>)
+                            <i class="mdi mdi-check-decagram me-1"></i> Aplicar ajuste<?php echo count($pendingRequests) ? ' (' . count($pendingRequests) . ')' : ''; ?>
                         </button>
                     </form>
                     <?php endif; ?>

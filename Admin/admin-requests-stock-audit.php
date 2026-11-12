@@ -12,11 +12,84 @@ require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
 require_role([1, 2]); // Administrador y Jefe
 
-// Filtro opcional por fecha de solicitud (desde)
-$desde = trim($_GET["desde"] ?? "");
+// Filtro opcional por fecha de solicitud (desde). Se respeta tanto en el
+// informe (GET) como al aplicar el ajuste (POST).
+$desde = trim($_POST["desde"] ?? $_GET["desde"] ?? "");
 $fechaCond = "";
 if ($desde !== "" && preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde)) {
     $fechaCond = " AND r.request_date >= '" . mysqli_real_escape_string($link, $desde) . " 00:00:00'";
+}
+
+$flash_ok = "";
+$flash_err = "";
+if (isset($_SESSION["audit_flash_ok"])) { $flash_ok = $_SESSION["audit_flash_ok"]; unset($_SESSION["audit_flash_ok"]); }
+if (isset($_SESSION["audit_flash_err"])) { $flash_err = $_SESSION["audit_flash_err"]; unset($_SESSION["audit_flash_err"]); }
+
+// ---------------------------------------------------------------------
+// APLICAR AJUSTE: crea los movimientos de salida de inventario SOLO para
+// las solicitudes despachadas que aun no los tienen (idempotente).
+// ---------------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "apply") {
+    // Mismo conjunto que muestra el informe (respeta el filtro de fecha).
+    $pend = mysqli_query($link, "SELECT r.id FROM requests r
+        WHERE r.status = 'despachado' $fechaCond
+          AND NOT EXISTS (SELECT 1 FROM stock_movements sm WHERE sm.reference_type='solicitud' AND sm.reference_id=r.id)
+        ORDER BY r.id");
+    $idsToApply = [];
+    while ($row = mysqli_fetch_assoc($pend)) { $idsToApply[] = (int) $row["id"]; }
+
+    $by = (int) $_SESSION["id"];
+    $aplicadas = 0;
+    $movimientos = 0;
+    $movStmt = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'solicitud', ?, 'solicitud', ?, ?)");
+
+    foreach ($idsToApply as $rid) {
+        // Doble verificacion dentro del bucle para no duplicar en concurrencia.
+        $chk = mysqli_query($link, "SELECT 1 FROM stock_movements WHERE reference_type='solicitud' AND reference_id=" . $rid . " LIMIT 1");
+        if ($chk && mysqli_num_rows($chk) > 0) { continue; }
+
+        // Reunir deducciones (articulo directo + kits expandidos).
+        $deductions = [];
+        $itemsRes = mysqli_prepare($link, "SELECT item_type, article_id, kit_id, quantity FROM request_items WHERE request_id = ?");
+        mysqli_stmt_bind_param($itemsRes, "i", $rid);
+        mysqli_stmt_execute($itemsRes);
+        $items = mysqli_stmt_get_result($itemsRes);
+        while ($it = mysqli_fetch_assoc($items)) {
+            $qty = (float) $it["quantity"];
+            if ($it["item_type"] === "articulo" && $it["article_id"]) {
+                $aid = (int) $it["article_id"];
+                $deductions[$aid] = ($deductions[$aid] ?? 0) + $qty;
+            } elseif ($it["item_type"] === "kit" && $it["kit_id"]) {
+                $kitRes = mysqli_prepare($link, "SELECT article_id, quantity FROM kit_items WHERE kit_id = ?");
+                mysqli_stmt_bind_param($kitRes, "i", $it["kit_id"]);
+                mysqli_stmt_execute($kitRes);
+                $kitItems = mysqli_stmt_get_result($kitRes);
+                while ($ki = mysqli_fetch_assoc($kitItems)) {
+                    $aid = (int) $ki["article_id"];
+                    $deductions[$aid] = ($deductions[$aid] ?? 0) + ((float) $ki["quantity"] * $qty);
+                }
+            }
+        }
+
+        if ($deductions) {
+            foreach ($deductions as $aid => $total) {
+                $neg = -1 * (float) $total;
+                mysqli_stmt_bind_param($movStmt, "idii", $aid, $neg, $rid, $by);
+                mysqli_stmt_execute($movStmt);
+                $movimientos++;
+            }
+            $aplicadas++;
+        }
+    }
+
+    if ($aplicadas > 0) {
+        log_activity($link, "ajuste", "Inventario", "Ajuste historico: desconto inventario de " . $aplicadas . " solicitud(es) despachadas (" . $movimientos . " movimientos)");
+        $_SESSION["audit_flash_ok"] = "Ajuste aplicado: se descontó el inventario de " . $aplicadas . " solicitud(es). Estas ya no aparecerán en el informe.";
+    } else {
+        $_SESSION["audit_flash_err"] = "No había solicitudes por ajustar (todo estaba al día).";
+    }
+    header("location: admin-requests-stock-audit.php" . ($desde !== "" ? "?desde=" . urlencode($desde) : ""));
+    exit;
 }
 
 // Solicitudes despachadas que AUN no tienen su movimiento de inventario
@@ -129,11 +202,35 @@ foreach ($deductByArticle as $aid => $tot) {
                     </div>
                 </div>
 
-                <div class="alert alert-warning" role="alert">
-                    <i class="mdi mdi-alert-outline me-1"></i>
-                    <strong>Solo informe.</strong> Esta pantalla no modifica el inventario. Muestra cuánto se
-                    descontaría por las solicitudes <strong>ya despachadas</strong> que nunca movieron stock
-                    (antes del cambio). Revisa los números; el ajuste real se aplica en un paso aparte.
+                <?php if ($flash_ok): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($flash_ok); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+                <?php if ($flash_err): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($flash_err); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+
+                <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
+                    <div>
+                        <i class="mdi mdi-alert-outline me-1"></i>
+                        Revisa los números. Al <strong>aplicar el ajuste</strong> se descontará el inventario
+                        <strong>solo</strong> de las solicitudes despachadas que aún no lo hicieron (las de este informe).
+                        No se duplica si vuelves a aplicarlo.
+                    </div>
+                    <?php if (!empty($pendingRequests)): ?>
+                    <form method="post" class="ms-auto" onsubmit="return confirm('Se descontará el inventario de <?php echo count($pendingRequests); ?> solicitud(es) despachada(s). ¿Aplicar el ajuste ahora?');">
+                        <input type="hidden" name="action" value="apply">
+                        <input type="hidden" name="desde" value="<?php echo htmlspecialchars($desde); ?>">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="mdi mdi-check-decagram me-1"></i> Aplicar ajuste (<?php echo count($pendingRequests); ?>)
+                        </button>
+                    </form>
+                    <?php endif; ?>
                 </div>
 
                 <form method="get" class="row g-2 align-items-end mb-3">

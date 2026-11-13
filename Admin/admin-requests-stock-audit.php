@@ -92,6 +92,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "apply
     exit;
 }
 
+// ---------------------------------------------------------------------
+// AJUSTE INDIVIDUAL: descuenta el inventario de UNA sola solicitud.
+// ---------------------------------------------------------------------
+if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "apply_one") {
+    $rid = (int) ($_POST["id"] ?? 0);
+    $ok = false;
+    if ($rid > 0) {
+        // Debe estar despachada y sin movimiento previo (idempotente).
+        $vStmt = mysqli_prepare($link, "SELECT 1 FROM requests r WHERE r.id = ? AND r.status = 'despachado'
+            AND NOT EXISTS (SELECT 1 FROM stock_movements sm WHERE sm.reference_type='solicitud' AND sm.reference_id=r.id)");
+        mysqli_stmt_bind_param($vStmt, "i", $rid);
+        mysqli_stmt_execute($vStmt);
+        $valida = mysqli_fetch_row(mysqli_stmt_get_result($vStmt));
+
+        if ($valida) {
+            $deductions = [];
+            $itemsRes = mysqli_prepare($link, "SELECT item_type, article_id, kit_id, quantity FROM request_items WHERE request_id = ?");
+            mysqli_stmt_bind_param($itemsRes, "i", $rid);
+            mysqli_stmt_execute($itemsRes);
+            $items = mysqli_stmt_get_result($itemsRes);
+            while ($it = mysqli_fetch_assoc($items)) {
+                $qty = (float) $it["quantity"];
+                if ($it["item_type"] === "articulo" && $it["article_id"]) {
+                    $aid = (int) $it["article_id"];
+                    $deductions[$aid] = ($deductions[$aid] ?? 0) + $qty;
+                } elseif ($it["item_type"] === "kit" && $it["kit_id"]) {
+                    $kitRes = mysqli_prepare($link, "SELECT article_id, quantity FROM kit_items WHERE kit_id = ?");
+                    mysqli_stmt_bind_param($kitRes, "i", $it["kit_id"]);
+                    mysqli_stmt_execute($kitRes);
+                    $kitItems = mysqli_stmt_get_result($kitRes);
+                    while ($ki = mysqli_fetch_assoc($kitItems)) {
+                        $aid = (int) $ki["article_id"];
+                        $deductions[$aid] = ($deductions[$aid] ?? 0) + ((float) $ki["quantity"] * $qty);
+                    }
+                }
+            }
+            if ($deductions) {
+                $by = (int) $_SESSION["id"];
+                $movStmt = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'solicitud', ?, 'solicitud', ?, ?)");
+                foreach ($deductions as $aid => $total) {
+                    $neg = -1 * (float) $total;
+                    mysqli_stmt_bind_param($movStmt, "idii", $aid, $neg, $rid, $by);
+                    mysqli_stmt_execute($movStmt);
+                }
+                log_activity($link, "ajuste", "Inventario", "Ajuste individual: desconto inventario de la solicitud #" . $rid);
+                $ok = true;
+            }
+        }
+    }
+    $_SESSION[$ok ? "audit_flash_ok" : "audit_flash_err"] = $ok
+        ? ("Ajuste aplicado a la solicitud #" . $rid . ". Inventario descontado.")
+        : ("No se pudo ajustar la solicitud #" . $rid . " (ya estaba ajustada o no es válida).");
+    header("location: admin-requests-stock-audit.php" . ($desde !== "" ? "?desde=" . urlencode($desde) : ""));
+    exit;
+}
+
 // Solicitudes despachadas que AUN no tienen su movimiento de inventario
 // (no existe stock_movements con reference_type='solicitud' y ese request id).
 $sql = "SELECT r.id, r.request_date,
@@ -275,6 +331,7 @@ foreach ($deductByArticle as $aid => $tot) {
                             <table class="table table-centered table-nowrap mb-0">
                                 <thead class="table-light">
                                     <tr>
+                                        <th>ID</th>
                                         <th>Artículo</th>
                                         <th class="text-end">Stock actual</th>
                                         <th class="text-end">A descontar</th>
@@ -287,6 +344,7 @@ foreach ($deductByArticle as $aid => $tot) {
                                             $now = $stockNow[$aid] ?? 0;
                                             $after = $now - $tot; ?>
                                             <tr>
+                                                <td class="text-muted"><?php echo (int) $aid; ?></td>
                                                 <td><?php echo htmlspecialchars($articleNames[$aid] ?? ("#" . $aid)); ?></td>
                                                 <td class="text-end"><?php echo format_qty($now); ?></td>
                                                 <td class="text-end text-danger">-<?php echo format_qty($tot); ?></td>
@@ -297,7 +355,7 @@ foreach ($deductByArticle as $aid => $tot) {
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
-                                        <tr><td colspan="4" class="text-center text-muted py-4">
+                                        <tr><td colspan="5" class="text-center text-muted py-4">
                                             No hay solicitudes despachadas pendientes de descontar. Todo está al día.
                                         </td></tr>
                                     <?php endif; ?>
@@ -314,7 +372,7 @@ foreach ($deductByArticle as $aid => $tot) {
                         <div class="table-responsive">
                             <table class="table table-sm table-nowrap mb-0">
                                 <thead class="table-light">
-                                    <tr><th>Solicitud</th><th>Fecha</th><th>Solicitante</th><th>Artículos a descontar</th></tr>
+                                    <tr><th>Solicitud</th><th>Fecha</th><th>Solicitante</th><th>Artículos a descontar</th><th class="text-end">Acción</th></tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($pendingRequests as $rid => $rq): ?>
@@ -324,9 +382,19 @@ foreach ($deductByArticle as $aid => $tot) {
                                             <td><?php echo htmlspecialchars($rq["solicitante"] ?? "—"); ?></td>
                                             <td>
                                                 <?php foreach (($deductDetail[$rid] ?? []) as $d): ?>
-                                                    <div><?php echo htmlspecialchars($d[1]); ?>
+                                                    <div><span class="text-muted">[<?php echo (int) $d[0]; ?>]</span> <?php echo htmlspecialchars($d[1]); ?>
                                                         <span class="badge bg-danger-subtle text-danger">-<?php echo format_qty($d[2]); ?></span></div>
                                                 <?php endforeach; ?>
+                                            </td>
+                                            <td class="text-end">
+                                                <form method="post" class="d-inline" onsubmit="return confirm('¿Ajustar el inventario SOLO de la solicitud #<?php echo $rid; ?>?');">
+                                                    <input type="hidden" name="action" value="apply_one">
+                                                    <input type="hidden" name="id" value="<?php echo $rid; ?>">
+                                                    <input type="hidden" name="desde" value="<?php echo htmlspecialchars($desde); ?>">
+                                                    <button type="submit" class="btn btn-sm btn-soft-danger">
+                                                        <i class="mdi mdi-check me-1"></i>Ajustar
+                                                    </button>
+                                                </form>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

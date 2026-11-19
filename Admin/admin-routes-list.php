@@ -82,27 +82,118 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
         $comment_val = $status === "cancelado" ? $comment : null;
         $by = (int) $_SESSION["id"];
 
-        $stmt = mysqli_prepare($link, "INSERT INTO route_deliveries
-            (client_id, status, delivery_date, carrier_id, cancel_comment, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            status = VALUES(status), delivery_date = VALUES(delivery_date),
-            carrier_id = VALUES(carrier_id), cancel_comment = VALUES(cancel_comment),
-            updated_by = VALUES(updated_by)");
-        mysqli_stmt_bind_param($stmt, "issisi", $client_id, $status, $date_val, $carrier_val, $comment_val, $by);
-        $ok = mysqli_stmt_execute($stmt);
+        // Estado anterior de la entrega (para saber si hay transicion a 'entregado')
+        $ps = mysqli_prepare($link, "SELECT status FROM route_deliveries WHERE client_id = ?");
+        mysqli_stmt_bind_param($ps, "i", $client_id);
+        mysqli_stmt_execute($ps);
+        $prevRow = mysqli_fetch_assoc(mysqli_stmt_get_result($ps));
+        $prev = $prevRow["status"] ?? "pendiente";
 
-        // Ejecutivo de cuenta se guarda en el cliente.
-        $eu = mysqli_prepare($link, "UPDATE clients SET account_executive = ? WHERE id = ?");
-        $ejec_val = $ejec !== "" ? $ejec : null;
-        mysqli_stmt_bind_param($eu, "si", $ejec_val, $client_id);
-        mysqli_stmt_execute($eu);
+        $to_entregado  = ($status === "entregado" && $prev !== "entregado");
+        $from_entregado = ($status !== "entregado" && $prev === "entregado");
+        $block_error    = "";
+        $kit_deductions = []; // article_id => cantidad
+        $kit_name_msg   = "";
 
-        if ($ok) {
-            log_activity($link, "actualizo", "Rutas", "Entrega del cliente #" . $client_id . " -> " . $STATUS_LABELS[$status]);
-            $_SESSION["flash_success"] = "Estado de entrega actualizado.";
+        // Al pasar a ENTREGADO: localizar el kit por clasificacion + marca y
+        // validar stock. Si falta stock o no hay kit, se BLOQUEA (no cambia estado).
+        if ($to_entregado) {
+            $cs = mysqli_prepare($link, "SELECT c.brand_id, c.classification_id, b.name AS brand_name, cl.name AS class_name
+                FROM clients c
+                LEFT JOIN brands b ON b.id = c.brand_id
+                LEFT JOIN client_classifications cl ON cl.id = c.classification_id
+                WHERE c.id = ?");
+            mysqli_stmt_bind_param($cs, "i", $client_id);
+            mysqli_stmt_execute($cs);
+            $cli = mysqli_fetch_assoc(mysqli_stmt_get_result($cs));
+
+            if (!$cli || !$cli["brand_id"] || !$cli["classification_id"]) {
+                $block_error = "El cliente no tiene marca y/o clasificación asignada; no se puede determinar el kit a descontar.";
+            } else {
+                $ks = mysqli_prepare($link, "SELECT id, name FROM kits WHERE classification_id = ? AND brand_id = ? AND status = 'activo' ORDER BY id DESC LIMIT 1");
+                mysqli_stmt_bind_param($ks, "ii", $cli["classification_id"], $cli["brand_id"]);
+                mysqli_stmt_execute($ks);
+                $kit = mysqli_fetch_assoc(mysqli_stmt_get_result($ks));
+                if (!$kit) {
+                    $block_error = "No hay un kit definido para la clasificación \"" . ($cli["class_name"] ?? "?") . "\" y la marca \"" . ($cli["brand_name"] ?? "?") . "\". Crea ese kit o revisa la clasificación/marca del cliente.";
+                } else {
+                    $kit_name_msg = $kit["name"];
+                    $its = mysqli_prepare($link, "SELECT ki.article_id, a.name, ki.quantity,
+                        COALESCE((SELECT SUM(sm.quantity) FROM stock_movements sm WHERE sm.article_id = a.id), 0) AS stock
+                        FROM kit_items ki JOIN articles a ON a.id = ki.article_id WHERE ki.kit_id = ?");
+                    mysqli_stmt_bind_param($its, "i", $kit["id"]);
+                    mysqli_stmt_execute($its);
+                    $ires = mysqli_stmt_get_result($its);
+                    $shortages = [];
+                    $nItems = 0;
+                    while ($it = mysqli_fetch_assoc($ires)) {
+                        $nItems++;
+                        $need = (float) $it["quantity"];
+                        $have = (float) $it["stock"];
+                        if ($have < $need) {
+                            $shortages[] = $it["name"] . " (necesita " . format_qty($need) . ", hay " . format_qty($have) . ")";
+                        }
+                        $aid = (int) $it["article_id"];
+                        $kit_deductions[$aid] = ($kit_deductions[$aid] ?? 0) + $need;
+                    }
+                    if ($nItems === 0) {
+                        $block_error = "El kit \"" . $kit["name"] . "\" no tiene artículos; no hay nada que descontar.";
+                    } elseif ($shortages) {
+                        $block_error = "No se puede marcar Entregado: falta stock de " . implode("; ", $shortages) . ".";
+                    }
+                }
+            }
+        }
+
+        if ($block_error !== "") {
+            $_SESSION["flash_error"] = $block_error;
         } else {
-            $_SESSION["flash_error"] = "No se pudo actualizar: " . mysqli_error($link);
+            $stmt = mysqli_prepare($link, "INSERT INTO route_deliveries
+                (client_id, status, delivery_date, carrier_id, cancel_comment, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                status = VALUES(status), delivery_date = VALUES(delivery_date),
+                carrier_id = VALUES(carrier_id), cancel_comment = VALUES(cancel_comment),
+                updated_by = VALUES(updated_by)");
+            mysqli_stmt_bind_param($stmt, "issisi", $client_id, $status, $date_val, $carrier_val, $comment_val, $by);
+            $ok = mysqli_stmt_execute($stmt);
+
+            // Ejecutivo de cuenta se guarda en el cliente.
+            $eu = mysqli_prepare($link, "UPDATE clients SET account_executive = ? WHERE id = ?");
+            $ejec_val = $ejec !== "" ? $ejec : null;
+            mysqli_stmt_bind_param($eu, "si", $ejec_val, $client_id);
+            mysqli_stmt_execute($eu);
+
+            // Movimientos de inventario por el cambio de estado
+            if ($to_entregado && $kit_deductions) {
+                $chk = mysqli_query($link, "SELECT 1 FROM stock_movements WHERE reference_type='ruta' AND reference_id=" . $client_id . " LIMIT 1");
+                if (!($chk && mysqli_num_rows($chk) > 0)) {
+                    $mov = mysqli_prepare($link, "INSERT INTO stock_movements (article_id, movement_type, quantity, reference_type, reference_id, created_by) VALUES (?, 'ruta', ?, 'ruta', ?, ?)");
+                    foreach ($kit_deductions as $aid => $total) {
+                        $neg = -1 * (float) $total;
+                        mysqli_stmt_bind_param($mov, "idii", $aid, $neg, $client_id, $by);
+                        mysqli_stmt_execute($mov);
+                    }
+                }
+            } elseif ($from_entregado) {
+                // Sale de 'entregado': revertir la salida de inventario del kit.
+                $dm = mysqli_prepare($link, "DELETE FROM stock_movements WHERE reference_type='ruta' AND reference_id=?");
+                mysqli_stmt_bind_param($dm, "i", $client_id);
+                mysqli_stmt_execute($dm);
+            }
+
+            if ($ok) {
+                log_activity($link, "actualizo", "Rutas", "Entrega del cliente #" . $client_id . " -> " . $STATUS_LABELS[$status]);
+                if ($to_entregado && $kit_deductions) {
+                    $_SESSION["flash_success"] = "Entregado. Se descontó el kit \"" . $kit_name_msg . "\" del inventario.";
+                } elseif ($from_entregado) {
+                    $_SESSION["flash_success"] = "Estado actualizado. Se revirtió el descuento de inventario del kit.";
+                } else {
+                    $_SESSION["flash_success"] = "Estado de entrega actualizado.";
+                }
+            } else {
+                $_SESSION["flash_error"] = "No se pudo actualizar: " . mysqli_error($link);
+            }
         }
     }
     header("location: admin-routes-list.php" . routes_query_string());

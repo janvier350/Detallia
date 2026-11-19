@@ -400,6 +400,15 @@ $pendingRequestsCount = count($pendingRequests);
                     </a>
                 </li>
 
+                <?php if (isset($_SESSION["role_id"]) && in_array((int) $_SESSION["role_id"], [1, 2, 3, 6], true)): ?>
+                <li>
+                    <a href="admin-routes-list.php">
+                        <i data-feather="map-pin"></i>
+                        <span>Rutas</span>
+                    </a>
+                </li>
+                <?php endif; ?>
+
                 <li>
                     <a href="admin-returns-list.php">
                         <i data-feather="corner-up-left"></i>

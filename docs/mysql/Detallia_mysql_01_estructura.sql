@@ -196,6 +196,7 @@ CREATE TABLE IF NOT EXISTS `clients` (
   `contact_name` VARCHAR(150) DEFAULT NULL,
   `genero` VARCHAR(20) DEFAULT NULL,
   `cargo` VARCHAR(120) DEFAULT NULL,
+  `account_executive` VARCHAR(150) DEFAULT NULL,
   `phone` VARCHAR(50) DEFAULT NULL,
   `email` VARCHAR(150) DEFAULT NULL,
   `address` VARCHAR(255) DEFAULT NULL,
@@ -488,6 +489,38 @@ CREATE TABLE IF NOT EXISTS `deleted_records` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
+-- MODULO 11: RUTAS (estado de entrega de regalos por cliente)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS `carriers` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(150) NOT NULL,
+  `phone` VARCHAR(50) DEFAULT NULL,
+  `status` ENUM('activo','inactivo') NOT NULL DEFAULT 'activo',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `route_deliveries` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `client_id` INT NOT NULL,
+  `status` ENUM('pendiente','entregado','devuelto','cancelado') NOT NULL DEFAULT 'pendiente',
+  `delivery_date` DATE DEFAULT NULL,
+  `carrier_id` INT DEFAULT NULL,
+  `cancel_comment` TEXT DEFAULT NULL,
+  `carrier_checked` TINYINT(1) NOT NULL DEFAULT 0,
+  `carrier_comment` TEXT DEFAULT NULL,
+  `updated_by` INT DEFAULT NULL,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_route_client` (`client_id`),
+  KEY `fk_route_carrier` (`carrier_id`),
+  KEY `fk_route_user` (`updated_by`),
+  KEY `idx_route_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
 -- LLAVES FORANEAS (declaradas en el proyecto)
 -- =====================================================================
 
@@ -582,6 +615,11 @@ ALTER TABLE `kit_simulation_items`
 
 ALTER TABLE `activity_log`
   ADD CONSTRAINT `fk_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `route_deliveries`
+  ADD CONSTRAINT `fk_route_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_route_carrier` FOREIGN KEY (`carrier_id`) REFERENCES `carriers` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_route_user` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 SET FOREIGN_KEY_CHECKS = 1;
 

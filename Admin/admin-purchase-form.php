@@ -19,6 +19,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $currency       = trim($_POST["currency"] ?? "USD");
     $shipping_cost  = (float) ($_POST["shipping_cost"] ?? 0);
     if ($shipping_cost < 0) $shipping_cost = 0;
+    $shipping_iva   = isset($_POST["shipping_iva"]) ? (float) $_POST["shipping_iva"] : 15;
+    if ($shipping_iva < 0) $shipping_iva = 0;
     $person_cost    = (float) ($_POST["personalization_cost"] ?? 0);
     if ($person_cost < 0) $person_cost = 0;
     $person_iva     = isset($_POST["personalization_iva"]) ? (float) $_POST["personalization_iva"] : 15;
@@ -50,17 +52,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         foreach ($valid_items as $it) {
             $total += $it["quantity"] * $it["unit_price"] * (1 + $it["iva_rate"] / 100);
         }
-        // El costo de envio se suma al total de la factura (sin IVA).
-        $total += $shipping_cost;
+        // El costo de envio se suma al total con su propio IVA.
+        $total += $shipping_cost * (1 + $shipping_iva / 100);
         // El costo de personalizacion se suma con su propio IVA.
         $total += $person_cost * (1 + $person_iva / 100);
 
         mysqli_begin_transaction($link);
         try {
             if ($form_id > 0) {
-                $sql = "UPDATE purchase_invoices SET provider_id=?, invoice_number=?, purchase_date=?, currency=?, shipping_cost=?, personalization_cost=?, personalization_iva=?, total_amount=?, notes=? WHERE id=?";
+                $sql = "UPDATE purchase_invoices SET provider_id=?, invoice_number=?, purchase_date=?, currency=?, shipping_cost=?, shipping_iva=?, personalization_cost=?, personalization_iva=?, total_amount=?, notes=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "isssddddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $person_cost, $person_iva, $total, $notes, $form_id);
+                mysqli_stmt_bind_param($stmt, "isssdddddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $shipping_iva, $person_cost, $person_iva, $total, $notes, $form_id);
                 if (!mysqli_stmt_execute($stmt)) {
                     throw new Exception(mysqli_error($link));
                 }
@@ -71,10 +73,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $target_id = $form_id;
             } else {
-                $sql = "INSERT INTO purchase_invoices (provider_id, invoice_number, purchase_date, currency, shipping_cost, personalization_cost, personalization_iva, total_amount, notes, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO purchase_invoices (provider_id, invoice_number, purchase_date, currency, shipping_cost, shipping_iva, personalization_cost, personalization_iva, total_amount, notes, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($link, $sql);
                 $registered_by = (int) $_SESSION["id"];
-                mysqli_stmt_bind_param($stmt, "isssddddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $person_cost, $person_iva, $total, $notes, $registered_by);
+                mysqli_stmt_bind_param($stmt, "isssdddddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $shipping_iva, $person_cost, $person_iva, $total, $notes, $registered_by);
                 if (!mysqli_stmt_execute($stmt)) {
                     throw new Exception(mysqli_error($link));
                 }
@@ -126,6 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "purchase_date" => $purchase_date,
         "currency" => $currency,
         "shipping_cost" => $shipping_cost,
+        "shipping_iva" => $shipping_iva,
         "personalization_cost" => $person_cost,
         "personalization_iva" => $person_iva,
         "notes" => $notes,
@@ -135,11 +138,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // ---------------------------------------------------------------
     // Cargar factura existente (modo edicion)
     // ---------------------------------------------------------------
-    $invoice = ["id" => 0, "provider_id" => 0, "invoice_number" => "", "purchase_date" => date("Y-m-d"), "currency" => "USD", "shipping_cost" => 0, "personalization_cost" => 0, "personalization_iva" => 15, "notes" => ""];
+    $invoice = ["id" => 0, "provider_id" => 0, "invoice_number" => "", "purchase_date" => date("Y-m-d"), "currency" => "USD", "shipping_cost" => 0, "shipping_iva" => 15, "personalization_cost" => 0, "personalization_iva" => 15, "notes" => ""];
     $invoice_items = [];
 
     if ($invoice_id > 0) {
-        $stmt = mysqli_prepare($link, "SELECT id, provider_id, invoice_number, purchase_date, currency, shipping_cost, personalization_cost, personalization_iva, notes FROM purchase_invoices WHERE id = ?");
+        $stmt = mysqli_prepare($link, "SELECT id, provider_id, invoice_number, purchase_date, currency, shipping_cost, shipping_iva, personalization_cost, personalization_iva, notes FROM purchase_invoices WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $invoice_id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -254,17 +257,21 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                             <label class="form-label">Fecha</label>
                                             <input type="date" name="purchase_date" class="form-control" required value="<?php echo htmlspecialchars($invoice["purchase_date"]); ?>">
                                         </div>
-                                        <div class="col-md-2 mb-3">
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Moneda</label>
                                             <input type="text" name="currency" class="form-control" value="<?php echo htmlspecialchars($invoice["currency"]); ?>">
-                                        </div>
-                                        <div class="col-md-2 mb-3">
-                                            <label class="form-label">Costo de envío</label>
-                                            <input type="number" step="0.01" min="0" name="shipping_cost" id="shippingCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_cost"] ?? 0), 2, '.', '')); ?>">
                                         </div>
                                     </div>
 
                                     <div class="row">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Costo de envío</label>
+                                            <input type="number" step="0.01" min="0" name="shipping_cost" id="shippingCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_cost"] ?? 0), 2, '.', '')); ?>">
+                                        </div>
+                                        <div class="col-md-2 mb-3">
+                                            <label class="form-label">IVA % envío</label>
+                                            <input type="number" step="0.01" min="0" name="shipping_iva" id="shippingIva" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_iva"] ?? 15), 2, '.', '')); ?>">
+                                        </div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Costo de personalización</label>
                                             <input type="number" step="0.01" min="0" name="personalization_cost" id="personCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["personalization_cost"] ?? 0), 2, '.', '')); ?>">
@@ -306,7 +313,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                                     <td colspan="2"></td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="5" class="text-end">Costo de envío</td>
+                                                    <td colspan="5" class="text-end">Costo de envío (c/IVA)</td>
                                                     <td class="text-end" id="grandShipping">0.00</td>
                                                     <td colspan="2"></td>
                                                 </tr>
@@ -464,22 +471,25 @@ function recalcTotals() {
         subSum += parseFloat(tr.querySelector('.it-subtotal').innerText) || 0;
         totSum += parseFloat(tr.querySelector('.it-total').innerText) || 0;
     });
-    var shipping = parseFloat((document.getElementById('shippingCost') || {}).value) || 0;
+    var shipCost = parseFloat((document.getElementById('shippingCost') || {}).value) || 0;
+    var shipIva = parseFloat((document.getElementById('shippingIva') || {}).value) || 0;
+    var shipTotal = shipCost * (1 + shipIva / 100);
+    var shipIvaAmount = shipCost * (shipIva / 100);
     var personCost = parseFloat((document.getElementById('personCost') || {}).value) || 0;
     var personIva = parseFloat((document.getElementById('personIva') || {}).value) || 0;
     var personTotal = personCost * (1 + personIva / 100);
     var personIvaAmount = personCost * (personIva / 100);
     document.getElementById('grandSubtotal').innerText = subSum.toFixed(2);
-    // IVA total = IVA de articulos + IVA de personalizacion (el envio no lleva IVA)
-    document.getElementById('grandIva').innerText = ((totSum - subSum) + personIvaAmount).toFixed(2);
+    // IVA total = IVA de articulos + IVA de envio + IVA de personalizacion
+    document.getElementById('grandIva').innerText = ((totSum - subSum) + shipIvaAmount + personIvaAmount).toFixed(2);
     document.getElementById('grandItems').innerText = totSum.toFixed(2);
-    document.getElementById('grandShipping').innerText = shipping.toFixed(2);
+    document.getElementById('grandShipping').innerText = shipTotal.toFixed(2);
     document.getElementById('grandPerson').innerText = personTotal.toFixed(2);
-    // El total de la factura incluye envio y personalizacion (con su IVA).
-    document.getElementById('grandTotal').innerText = (totSum + shipping + personTotal).toFixed(2);
+    // El total de la factura incluye envio y personalizacion (con sus IVA).
+    document.getElementById('grandTotal').innerText = (totSum + shipTotal + personTotal).toFixed(2);
 }
-// Recalcular cuando cambien envio o personalizacion
-['shippingCost', 'personCost', 'personIva'].forEach(function (id) {
+// Recalcular cuando cambien envio/personalizacion y sus IVA
+['shippingCost', 'shippingIva', 'personCost', 'personIva'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) { el.addEventListener('input', recalcTotals); }
 });

@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS `purchase_invoices` (
   `purchase_date` DATE NOT NULL,
   `currency` VARCHAR(10) NOT NULL DEFAULT 'USD',
   `shipping_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `shipping_iva` DECIMAL(5,2) NOT NULL DEFAULT 15.00,
   `personalization_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `personalization_iva` DECIMAL(5,2) NOT NULL DEFAULT 15.00,
   `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,

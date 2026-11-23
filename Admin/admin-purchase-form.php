@@ -17,6 +17,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $invoice_number = trim($_POST["invoice_number"] ?? "");
     $purchase_date  = trim($_POST["purchase_date"] ?? "");
     $currency       = trim($_POST["currency"] ?? "USD");
+    $shipping_cost  = (float) ($_POST["shipping_cost"] ?? 0);
+    if ($shipping_cost < 0) $shipping_cost = 0;
     $notes          = trim($_POST["notes"] ?? "");
     $items_article  = $_POST["item_article_id"] ?? [];
     $items_qty      = $_POST["item_quantity"] ?? [];
@@ -44,13 +46,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         foreach ($valid_items as $it) {
             $total += $it["quantity"] * $it["unit_price"] * (1 + $it["iva_rate"] / 100);
         }
+        // El costo de envio se suma al total de la factura.
+        $total += $shipping_cost;
 
         mysqli_begin_transaction($link);
         try {
             if ($form_id > 0) {
-                $sql = "UPDATE purchase_invoices SET provider_id=?, invoice_number=?, purchase_date=?, currency=?, total_amount=?, notes=? WHERE id=?";
+                $sql = "UPDATE purchase_invoices SET provider_id=?, invoice_number=?, purchase_date=?, currency=?, shipping_cost=?, total_amount=?, notes=? WHERE id=?";
                 $stmt = mysqli_prepare($link, $sql);
-                mysqli_stmt_bind_param($stmt, "isssdsi", $provider_id, $invoice_number, $purchase_date, $currency, $total, $notes, $form_id);
+                mysqli_stmt_bind_param($stmt, "isssddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $total, $notes, $form_id);
                 if (!mysqli_stmt_execute($stmt)) {
                     throw new Exception(mysqli_error($link));
                 }
@@ -61,10 +65,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $target_id = $form_id;
             } else {
-                $sql = "INSERT INTO purchase_invoices (provider_id, invoice_number, purchase_date, currency, total_amount, notes, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO purchase_invoices (provider_id, invoice_number, purchase_date, currency, shipping_cost, total_amount, notes, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($link, $sql);
                 $registered_by = (int) $_SESSION["id"];
-                mysqli_stmt_bind_param($stmt, "isssdsi", $provider_id, $invoice_number, $purchase_date, $currency, $total, $notes, $registered_by);
+                mysqli_stmt_bind_param($stmt, "isssddsi", $provider_id, $invoice_number, $purchase_date, $currency, $shipping_cost, $total, $notes, $registered_by);
                 if (!mysqli_stmt_execute($stmt)) {
                     throw new Exception(mysqli_error($link));
                 }
@@ -115,6 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "invoice_number" => $invoice_number,
         "purchase_date" => $purchase_date,
         "currency" => $currency,
+        "shipping_cost" => $shipping_cost,
         "notes" => $notes,
     ];
     $invoice_items = $valid_items;
@@ -122,11 +127,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // ---------------------------------------------------------------
     // Cargar factura existente (modo edicion)
     // ---------------------------------------------------------------
-    $invoice = ["id" => 0, "provider_id" => 0, "invoice_number" => "", "purchase_date" => date("Y-m-d"), "currency" => "USD", "notes" => ""];
+    $invoice = ["id" => 0, "provider_id" => 0, "invoice_number" => "", "purchase_date" => date("Y-m-d"), "currency" => "USD", "shipping_cost" => 0, "notes" => ""];
     $invoice_items = [];
 
     if ($invoice_id > 0) {
-        $stmt = mysqli_prepare($link, "SELECT id, provider_id, invoice_number, purchase_date, currency, notes FROM purchase_invoices WHERE id = ?");
+        $stmt = mysqli_prepare($link, "SELECT id, provider_id, invoice_number, purchase_date, currency, shipping_cost, notes FROM purchase_invoices WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $invoice_id);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
@@ -241,9 +246,13 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                             <label class="form-label">Fecha</label>
                                             <input type="date" name="purchase_date" class="form-control" required value="<?php echo htmlspecialchars($invoice["purchase_date"]); ?>">
                                         </div>
-                                        <div class="col-md-3 mb-3">
+                                        <div class="col-md-2 mb-3">
                                             <label class="form-label">Moneda</label>
                                             <input type="text" name="currency" class="form-control" value="<?php echo htmlspecialchars($invoice["currency"]); ?>">
+                                        </div>
+                                        <div class="col-md-2 mb-3">
+                                            <label class="form-label">Costo de envío</label>
+                                            <input type="number" step="0.01" min="0" name="shipping_cost" id="shippingCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_cost"] ?? 0), 2, '.', '')); ?>">
                                         </div>
                                     </div>
 
@@ -272,6 +281,16 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                             <tbody id="itemsBody">
                                             </tbody>
                                             <tfoot>
+                                                <tr>
+                                                    <td colspan="5" class="text-end">Subtotal artículos + IVA</td>
+                                                    <td class="text-end" id="grandItems">0.00</td>
+                                                    <td colspan="2"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td colspan="5" class="text-end">Costo de envío</td>
+                                                    <td class="text-end" id="grandShipping">0.00</td>
+                                                    <td colspan="2"></td>
+                                                </tr>
                                                 <tr class="table-light">
                                                     <td colspan="4" class="text-end fw-bold">Totales</td>
                                                     <td class="fw-bold text-end" id="grandSubtotal">0.00</td>
@@ -421,10 +440,17 @@ function recalcTotals() {
         subSum += parseFloat(tr.querySelector('.it-subtotal').innerText) || 0;
         totSum += parseFloat(tr.querySelector('.it-total').innerText) || 0;
     });
+    var shipping = parseFloat((document.getElementById('shippingCost') || {}).value) || 0;
     document.getElementById('grandSubtotal').innerText = subSum.toFixed(2);
-    document.getElementById('grandTotal').innerText = totSum.toFixed(2);
     document.getElementById('grandIva').innerText = (totSum - subSum).toFixed(2);
+    document.getElementById('grandItems').innerText = totSum.toFixed(2);
+    document.getElementById('grandShipping').innerText = shipping.toFixed(2);
+    // El total de la factura incluye el costo de envio.
+    document.getElementById('grandTotal').innerText = (totSum + shipping).toFixed(2);
 }
+// Recalcular cuando cambie el costo de envio
+var shippingEl = document.getElementById('shippingCost');
+if (shippingEl) { shippingEl.addEventListener('input', recalcTotals); }
 
 // Delegacion de eventos en el cuerpo de la tabla
 itemsBody.addEventListener('input', recalcTotals);

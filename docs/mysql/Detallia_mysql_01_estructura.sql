@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS `purchase_invoices` (
   `invoice_number` VARCHAR(50) NOT NULL,
   `purchase_date` DATE NOT NULL,
   `currency` VARCHAR(10) NOT NULL DEFAULT 'USD',
+  `shipping_cost` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `total_amount` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `attachment_path` VARCHAR(255) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,

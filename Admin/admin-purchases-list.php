@@ -71,7 +71,7 @@ if ($filter_article > 0) {
     // prepend article filter param (must come first because it appears first in SQL)
 }
 
-$sql = "SELECT DISTINCT i.id, i.invoice_number, i.purchase_date, i.currency, i.shipping_cost, i.total_amount, i.notes, i.created_at,
+$sql = "SELECT DISTINCT i.id, i.invoice_number, i.purchase_date, i.currency, i.shipping_cost, i.personalization_cost, i.personalization_iva, i.total_amount, i.notes, i.created_at,
                 p.name AS provider_name, u.username AS registered_by_name
          FROM purchase_invoices i
          JOIN providers p ON p.id = i.provider_id
@@ -205,6 +205,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                                 <th>Proveedor</th>
                                                 <th>Fecha</th>
                                                 <th>Envío</th>
+                                                <th>Personaliz.</th>
                                                 <th>Total</th>
                                                 <th>Registrado por</th>
                                                 <th class="text-end">Acciones</th>
@@ -218,6 +219,7 @@ $articles_filter = mysqli_query($link, "SELECT id, name FROM articles ORDER BY n
                                                     <td><?php echo htmlspecialchars($inv["provider_name"]); ?></td>
                                                     <td><?php echo htmlspecialchars($inv["purchase_date"]); ?></td>
                                                     <td><?php echo htmlspecialchars($inv["currency"]); ?> <?php echo number_format((float) ($inv["shipping_cost"] ?? 0), 2); ?></td>
+                                                    <td><?php echo htmlspecialchars($inv["currency"]); ?> <?php echo number_format((float) ($inv["personalization_cost"] ?? 0), 2); ?> <small class="text-muted">(IVA <?php echo number_format((float) ($inv["personalization_iva"] ?? 0), 0); ?>%)</small></td>
                                                     <td><?php echo htmlspecialchars($inv["currency"]); ?> <?php echo number_format((float) $inv["total_amount"], 2); ?></td>
                                                     <td><?php echo htmlspecialchars($inv["registered_by_name"] ?? "-"); ?></td>
                                                     <td class="text-end">

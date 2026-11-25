@@ -88,9 +88,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save_
     $cw_mm = $cw_cm > 0 ? $cw_cm * 10 : null;
     $ch_mm = $ch_cm > 0 ? $ch_cm * 10 : null;
     $font  = array_key_exists($_POST["font_family"] ?? "", $CARD_FONTS) ? $_POST["font_family"] : "Arial";
+    $fpt   = max(4, min(200, (float) ($_POST["font_pt"] ?? 24)));
+    $orient = in_array($_POST["orientation"] ?? "", ["portrait", "landscape"], true) ? $_POST["orientation"] : "portrait";
     if ($id > 0) {
-        $stmt = mysqli_prepare($link, "UPDATE card_templates SET pos_x=?, pos_y=?, font_pct=?, font_color=?, text_align=?, grid_cols=?, card_w_mm=?, card_h_mm=?, font_family=? WHERE id=?");
-        mysqli_stmt_bind_param($stmt, "dddssiddsi", $px, $py, $fp, $color, $align, $cols, $cw_mm, $ch_mm, $font, $id);
+        $stmt = mysqli_prepare($link, "UPDATE card_templates SET pos_x=?, pos_y=?, font_pt=?, font_color=?, text_align=?, grid_cols=?, card_w_mm=?, card_h_mm=?, font_family=?, orientation=? WHERE id=?");
+        mysqli_stmt_bind_param($stmt, "dddssiddssi", $px, $py, $fpt, $color, $align, $cols, $cw_mm, $ch_mm, $font, $orient, $id);
         mysqli_stmt_execute($stmt);
         $_SESSION["flash_success"] = "Posición guardada.";
     }
@@ -132,6 +134,16 @@ if ($sel_id > 0) {
     mysqli_stmt_bind_param($s, "i", $sel_id);
     mysqli_stmt_execute($s);
     $tpl = mysqli_fetch_assoc(mysqli_stmt_get_result($s));
+}
+
+// Ancho efectivo de la tarjeta en mm (para escalar la vista previa del texto en pt)
+$effCardWmm = 90.0;
+if ($tpl) {
+    $o = $tpl["orientation"] ?? "portrait";
+    $pw = $o === "landscape" ? 297 : 210;
+    $contentW = $pw - 2 * 8;
+    $cols0 = max(1, min(6, (int) $tpl["grid_cols"]));
+    $effCardWmm = ((float) ($tpl["card_w_mm"] ?? 0) > 0) ? (float) $tpl["card_w_mm"] : ($contentW / $cols0);
 }
 
 // Filtros de clientes (para contar / imprimir)
@@ -331,9 +343,9 @@ function cards_filter_qs()
 
                                         <div class="row g-2 mb-3">
                                             <div class="col-sm-3">
-                                                <label class="form-label mb-1">Tamaño de letra: <strong id="font_pct_val"><?php echo htmlspecialchars(number_format((float) $tpl["font_pct"], 1)); ?></strong></label>
-                                                <input type="range" min="1" max="20" step="0.5" value="<?php echo htmlspecialchars($tpl["font_pct"]); ?>" id="font_pct_range" class="form-range">
-                                                <input type="hidden" name="font_pct" id="font_pct" value="<?php echo htmlspecialchars($tpl["font_pct"]); ?>">
+                                                <label class="form-label mb-1">Tamaño de letra: <strong id="font_pct_val"><?php echo htmlspecialchars(number_format((float) ($tpl["font_pt"] ?? 24), 0)); ?></strong> pt</label>
+                                                <input type="range" min="6" max="96" step="1" value="<?php echo htmlspecialchars($tpl["font_pt"] ?? 24); ?>" id="font_pct_range" class="form-range">
+                                                <input type="hidden" name="font_pt" id="font_pct" value="<?php echo htmlspecialchars($tpl["font_pt"] ?? 24); ?>">
                                             </div>
                                             <div class="col-sm-3">
                                                 <label class="form-label mb-1">Color</label>
@@ -367,8 +379,15 @@ function cards_filter_qs()
                                                 <input type="number" step="0.0001" min="0" name="card_h_cm" class="form-control" value="<?php echo $tpl["card_h_mm"] !== null ? htmlspecialchars(number_format((float) $tpl["card_h_mm"] / 10, 4, '.', '')) : ''; ?>" placeholder="auto">
                                             </div>
                                             <div class="col-sm-3">
-                                                <label class="form-label mb-1">Tarjetas por fila (si no pones cm)</label>
+                                                <label class="form-label mb-1">Tarjetas por fila</label>
                                                 <input type="number" min="1" max="6" name="grid_cols" id="grid_cols" value="<?php echo (int) $tpl["grid_cols"]; ?>" class="form-control">
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <label class="form-label mb-1">Orientación de la hoja</label>
+                                                <select name="orientation" class="form-select">
+                                                    <option value="portrait" <?php echo ($tpl["orientation"] ?? 'portrait') === 'portrait' ? 'selected' : ''; ?>>Vertical</option>
+                                                    <option value="landscape" <?php echo ($tpl["orientation"] ?? 'portrait') === 'landscape' ? 'selected' : ''; ?>>Horizontal</option>
+                                                </select>
                                             </div>
                                         </div>
 
@@ -418,12 +437,15 @@ function cards_filter_qs()
     applyFamily();
 
     var fontVal = document.getElementById('font_pct_val');
+    var effCardWmm = <?php echo json_encode((float) $effCardWmm); ?>;
     function applyFont() {
-        var pct = parseFloat(fontRange.value) || 6;
-        fontHidden.value = pct;
-        if (fontVal) { fontVal.textContent = pct.toFixed(1); }
-        // tamaño en px proporcional al ancho mostrado de la imagen
-        box.style.fontSize = (pct / 100 * img.clientWidth) + 'px';
+        var pt = parseFloat(fontRange.value) || 24;
+        fontHidden.value = pt;
+        if (fontVal) { fontVal.textContent = Math.round(pt); }
+        // pt -> mm (1pt = 0.352778mm); escalar a los px mostrados de la tarjeta
+        var fontMm = pt * 0.352778;
+        var pxPerMm = img.clientWidth / effCardWmm;
+        box.style.fontSize = (fontMm * pxPerMm) + 'px';
     }
     function applyStyle() {
         box.style.color = colorInp.value;

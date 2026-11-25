@@ -57,22 +57,24 @@ if (is_file($imgFile)) {
 }
 $aspect = $imgH / $imgW; // alto/ancho
 
-// Geometria A4 (vertical) en mm
-$pageW = 210; $margin = 8; $gap = 0; // tarjetas unidas (corte compartido)
+// Geometria A4 en mm (segun orientacion)
+$orient = ($tpl["orientation"] ?? "portrait") === "landscape" ? "landscape" : "portrait";
+$margin = 8;
+$pageW = $orient === "landscape" ? 297 : 210;
 $content = $pageW - 2 * $margin;
 
+// "Tarjetas por fila" siempre define las columnas.
+$cols = max(1, min(6, (int) $tpl["grid_cols"]));
 if ((float) $tpl["card_w_mm"] > 0 && (float) $tpl["card_h_mm"] > 0) {
-    // Tamaño fisico exacto: la hoja acomoda cuantas quepan por fila.
+    // Tamaño fisico exacto (cm).
     $cardW = (float) $tpl["card_w_mm"];
     $cardH = (float) $tpl["card_h_mm"];
-    $cols  = max(1, (int) floor(($content + $gap) / ($cardW + $gap)));
 } else {
-    // Automatico: por "tarjetas por fila", conservando la proporcion de la imagen.
-    $cols  = max(1, min(6, (int) $tpl["grid_cols"]));
-    $cardW = ($content - ($cols - 1) * $gap) / $cols;
+    // Automatico: ancho = contenido / columnas, alto por la proporcion de la imagen.
+    $cardW = $content / $cols;
     $cardH = $cardW * $aspect;
 }
-$fontMm = (float) $tpl["font_pct"] / 100 * $cardW;
+$fontPt = (float) ($tpl["font_pt"] ?? 24);
 $fontStack = $CARD_FONTS[$tpl["font_family"] ?? 'Arial'] ?? $CARD_FONTS['Arial'];
 
 $imgUrl = htmlspecialchars($tpl["image_path"]);
@@ -90,7 +92,7 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
         body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #e9ecef; }
         .toolbar { padding: 10px; text-align: center; background: #fff; border-bottom: 1px solid #ddd; }
         .sheet {
-            width: 210mm; margin: 10px auto; background: #fff; padding: <?php echo $margin; ?>mm;
+            width: <?php echo $pageW; ?>mm; margin: 10px auto; background: #fff; padding: <?php echo $margin; ?>mm;
             display: grid; grid-template-columns: repeat(<?php echo $cols; ?>, <?php echo $cardW; ?>mm);
             gap: 0; justify-content: center;
         }
@@ -104,7 +106,7 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
         .card .nm {
             position: absolute; left: <?php echo (float) $tpl["pos_x"]; ?>%; top: <?php echo (float) $tpl["pos_y"]; ?>%;
             transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700;
-            font-size: <?php echo $fontMm; ?>mm; color: <?php echo htmlspecialchars($tpl["font_color"]); ?>;
+            font-size: <?php echo $fontPt; ?>pt; color: <?php echo htmlspecialchars($tpl["font_color"]); ?>;
             text-align: <?php echo htmlspecialchars($tpl["text_align"]); ?>;
             font-family: <?php echo $fontStack; ?>;
         }
@@ -112,7 +114,7 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
             body { background: #fff; }
             .toolbar { display: none; }
             .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; }
-            @page { size: A4 portrait; margin: <?php echo $margin; ?>mm; }
+            @page { size: A4 <?php echo $orient; ?>; margin: <?php echo $margin; ?>mm; }
             .sheet { padding: 0; }
         }
     </style>

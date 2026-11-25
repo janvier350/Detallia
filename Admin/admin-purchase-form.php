@@ -107,7 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             mysqli_commit($link);
             $_SESSION["flash_success"] = $form_id > 0 ? "Factura actualizada correctamente." : "Factura registrada correctamente.";
-            log_activity($link, $form_id > 0 ? "edito" : "creo", "Compras", ($form_id > 0 ? "Edito" : "Registro") . " factura #" . $target_id . " (total " . number_format($total, 2) . ")", "Factura " . $invoice_number);
+            log_activity($link, $form_id > 0 ? "edito" : "creo", "Compras", ($form_id > 0 ? "Edito" : "Registro") . " factura #" . $target_id . " (total " . number_format($total, 3) . ")", "Factura " . $invoice_number);
             header("location: admin-purchases-list.php");
             exit;
         } catch (Exception $e) {
@@ -266,7 +266,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                     <div class="row">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Costo de envío</label>
-                                            <input type="number" step="0.01" min="0" name="shipping_cost" id="shippingCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_cost"] ?? 0), 2, '.', '')); ?>">
+                                            <input type="number" step="0.001" min="0" name="shipping_cost" id="shippingCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["shipping_cost"] ?? 0), 3, '.', '')); ?>">
                                         </div>
                                         <div class="col-md-2 mb-3">
                                             <label class="form-label">IVA % envío</label>
@@ -274,7 +274,7 @@ while ($h = mysqli_fetch_assoc($histRes)) {
                                         </div>
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Costo de personalización</label>
-                                            <input type="number" step="0.01" min="0" name="personalization_cost" id="personCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["personalization_cost"] ?? 0), 2, '.', '')); ?>">
+                                            <input type="number" step="0.001" min="0" name="personalization_cost" id="personCost" class="form-control" value="<?php echo htmlspecialchars(number_format((float) ($invoice["personalization_cost"] ?? 0), 3, '.', '')); ?>">
                                         </div>
                                         <div class="col-md-2 mb-3">
                                             <label class="form-label">IVA % personalización</label>
@@ -416,7 +416,7 @@ function buildHistoryHtml(articleId) {
     var hist = PRICE_HISTORY[articleId];
     if (!hist || hist.length === 0) return '<small class="text-muted">Sin compras previas</small>';
     var html = '<small class="text-muted">';
-    hist.forEach(function (h) { html += h.date + ': $' + h.price.toFixed(2) + ' (' + esc(h.provider) + ')<br>'; });
+    hist.forEach(function (h) { html += h.date + ': $' + h.price.toFixed(3) + ' (' + esc(h.provider) + ')<br>'; });
     return html + '</small>';
 }
 
@@ -431,8 +431,8 @@ function addRow(item) {
                 '<span class="pick-label text-muted">Seleccionar articulo...</span>' +
             '</button>' +
         '</td>' +
-        '<td><input type="number" step="0.01" min="0.01" name="item_quantity[]" class="form-control it-qty" value="' + (item.quantity || 1) + '" required></td>' +
-        '<td><input type="number" step="0.01" min="0" name="item_unit_price[]" class="form-control it-price" value="' + (item.unit_price || '') + '" required></td>' +
+        '<td><input type="number" step="0.001" min="0.001" name="item_quantity[]" class="form-control it-qty" value="' + (item.quantity || 1) + '" required></td>' +
+        '<td><input type="number" step="0.001" min="0" name="item_unit_price[]" class="form-control it-price" value="' + (item.unit_price || '') + '" required></td>' +
         '<td><input type="number" step="0.01" min="0" name="item_iva_rate[]" class="form-control it-iva" value="' + ivaVal + '"></td>' +
         '<td class="text-end it-subtotal">0.00</td>' +
         '<td class="text-end it-total">0.00</td>' +
@@ -460,8 +460,8 @@ function recalcRow(tr) {
     var iva = parseFloat(tr.querySelector('.it-iva').value) || 0;
     var sub = qty * price;
     var tot = sub * (1 + iva / 100);
-    tr.querySelector('.it-subtotal').innerText = sub.toFixed(2);
-    tr.querySelector('.it-total').innerText = tot.toFixed(2);
+    tr.querySelector('.it-subtotal').innerText = sub.toFixed(3);
+    tr.querySelector('.it-total').innerText = tot.toFixed(3);
 }
 
 function recalcTotals() {
@@ -479,14 +479,14 @@ function recalcTotals() {
     var personIva = parseFloat((document.getElementById('personIva') || {}).value) || 0;
     var personTotal = personCost * (1 + personIva / 100);
     var personIvaAmount = personCost * (personIva / 100);
-    document.getElementById('grandSubtotal').innerText = subSum.toFixed(2);
+    document.getElementById('grandSubtotal').innerText = subSum.toFixed(3);
     // IVA total = IVA de articulos + IVA de envio + IVA de personalizacion
-    document.getElementById('grandIva').innerText = ((totSum - subSum) + shipIvaAmount + personIvaAmount).toFixed(2);
-    document.getElementById('grandItems').innerText = totSum.toFixed(2);
-    document.getElementById('grandShipping').innerText = shipTotal.toFixed(2);
-    document.getElementById('grandPerson').innerText = personTotal.toFixed(2);
+    document.getElementById('grandIva').innerText = ((totSum - subSum) + shipIvaAmount + personIvaAmount).toFixed(3);
+    document.getElementById('grandItems').innerText = totSum.toFixed(3);
+    document.getElementById('grandShipping').innerText = shipTotal.toFixed(3);
+    document.getElementById('grandPerson').innerText = personTotal.toFixed(3);
     // El total de la factura incluye envio y personalizacion (con sus IVA).
-    document.getElementById('grandTotal').innerText = (totSum + shipTotal + personTotal).toFixed(2);
+    document.getElementById('grandTotal').innerText = (totSum + shipTotal + personTotal).toFixed(3);
 }
 // Recalcular cuando cambien envio/personalizacion y sus IVA
 ['shippingCost', 'shippingIva', 'personCost', 'personIva'].forEach(function (id) {

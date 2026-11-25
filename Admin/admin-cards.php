@@ -5,6 +5,23 @@ require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 6]); // Administrador, Jefe, Asistente, Editor
 
+// Fuentes disponibles para el nombre (clave => stack CSS)
+$CARD_FONTS = [
+    'Arial'            => 'Arial, Helvetica, sans-serif',
+    'Georgia'          => 'Georgia, serif',
+    'Times New Roman'  => "'Times New Roman', Times, serif",
+    'Verdana'          => 'Verdana, sans-serif',
+    'Courier New'      => "'Courier New', monospace",
+    'Alex Brush'       => "'Alex Brush', cursive",
+    'Great Vibes'      => "'Great Vibes', cursive",
+    'Dancing Script'   => "'Dancing Script', cursive",
+    'Pacifico'         => "'Pacifico', cursive",
+    'Satisfy'          => "'Satisfy', cursive",
+    'Sacramento'       => "'Sacramento', cursive",
+    'Parisienne'       => "'Parisienne', cursive",
+];
+$GFONTS_LINK = 'https://fonts.googleapis.com/css2?family=Alex+Brush&family=Great+Vibes&family=Dancing+Script:wght@400;700&family=Pacifico&family=Satisfy&family=Sacramento&family=Parisienne&display=swap';
+
 $success_msg = "";
 $error_msg   = "";
 if (isset($_SESSION["flash_success"])) { $success_msg = $_SESSION["flash_success"]; unset($_SESSION["flash_success"]); }
@@ -31,8 +48,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "uploa
             if (move_uploaded_file($_FILES["image"]["tmp_name"], $dir . $fn)) {
                 $path = 'assets/images/cards/' . $fn;
                 $by = (int) $_SESSION["id"];
-                $stmt = mysqli_prepare($link, "INSERT INTO card_templates (name, image_path, created_by) VALUES (?, ?, ?)");
-                mysqli_stmt_bind_param($stmt, "ssi", $tpl_name, $path, $by);
+                // Tamaño por defecto: ancho 90 mm y alto segun la proporcion de la imagen.
+                $cw = 90.0; $ch = 60.0;
+                $sz = @getimagesize($dir . $fn);
+                if ($sz && $sz[0] > 0 && $sz[1] > 0) { $ch = round(90.0 * $sz[1] / $sz[0], 2); }
+                $stmt = mysqli_prepare($link, "INSERT INTO card_templates (name, image_path, card_w_mm, card_h_mm, created_by) VALUES (?, ?, ?, ?, ?)");
+                mysqli_stmt_bind_param($stmt, "ssddi", $tpl_name, $path, $cw, $ch, $by);
                 mysqli_stmt_execute($stmt);
                 $newId = mysqli_insert_id($link);
                 log_activity($link, "creo", "Tarjetas", "Subió plantilla de tarjeta: " . $tpl_name);
@@ -61,9 +82,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "save_
     $color = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST["font_color"] ?? "") ? $_POST["font_color"] : "#1b5e20";
     $align = in_array($_POST["text_align"] ?? "", ["left", "center", "right"], true) ? $_POST["text_align"] : "center";
     $cols  = max(1, min(6, (int) ($_POST["grid_cols"] ?? 2)));
+    // Tamaño exacto en cm -> mm (0 o vacio = automatico)
+    $cw_cm = (float) ($_POST["card_w_cm"] ?? 0);
+    $ch_cm = (float) ($_POST["card_h_cm"] ?? 0);
+    $cw_mm = $cw_cm > 0 ? $cw_cm * 10 : null;
+    $ch_mm = $ch_cm > 0 ? $ch_cm * 10 : null;
+    $font  = array_key_exists($_POST["font_family"] ?? "", $CARD_FONTS) ? $_POST["font_family"] : "Arial";
     if ($id > 0) {
-        $stmt = mysqli_prepare($link, "UPDATE card_templates SET pos_x=?, pos_y=?, font_pct=?, font_color=?, text_align=?, grid_cols=? WHERE id=?");
-        mysqli_stmt_bind_param($stmt, "dddssii", $px, $py, $fp, $color, $align, $cols, $id);
+        $stmt = mysqli_prepare($link, "UPDATE card_templates SET pos_x=?, pos_y=?, font_pct=?, font_color=?, text_align=?, grid_cols=?, card_w_mm=?, card_h_mm=?, font_family=? WHERE id=?");
+        mysqli_stmt_bind_param($stmt, "dddssiddsi", $px, $py, $fp, $color, $align, $cols, $cw_mm, $ch_mm, $font, $id);
         mysqli_stmt_execute($stmt);
         $_SESSION["flash_success"] = "Posición guardada.";
     }
@@ -157,6 +184,9 @@ function cards_filter_qs()
     <title>Tarjetas | Detallia</title>
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="<?php echo $GFONTS_LINK; ?>" rel="stylesheet">
 </head>
 
 <?php include 'layouts/body.php'; ?>
@@ -318,14 +348,33 @@ function cards_filter_qs()
                                                 </select>
                                             </div>
                                             <div class="col-sm-3">
-                                                <label class="form-label mb-1">Tarjetas por fila</label>
+                                                <label class="form-label mb-1">Fuente</label>
+                                                <select name="font_family" id="font_family" class="form-select">
+                                                    <?php foreach ($CARD_FONTS as $fname => $stack): ?>
+                                                        <option value="<?php echo htmlspecialchars($fname); ?>" data-stack="<?php echo htmlspecialchars($stack, ENT_QUOTES); ?>" <?php echo ($tpl["font_family"] ?? 'Arial') === $fname ? "selected" : ""; ?>><?php echo htmlspecialchars($fname); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-2 mb-3">
+                                            <div class="col-sm-3">
+                                                <label class="form-label mb-1">Ancho tarjeta (cm)</label>
+                                                <input type="number" step="0.0001" min="0" name="card_w_cm" class="form-control" value="<?php echo $tpl["card_w_mm"] !== null ? htmlspecialchars(number_format((float) $tpl["card_w_mm"] / 10, 4, '.', '')) : ''; ?>" placeholder="auto">
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <label class="form-label mb-1">Alto tarjeta (cm)</label>
+                                                <input type="number" step="0.0001" min="0" name="card_h_cm" class="form-control" value="<?php echo $tpl["card_h_mm"] !== null ? htmlspecialchars(number_format((float) $tpl["card_h_mm"] / 10, 4, '.', '')) : ''; ?>" placeholder="auto">
+                                            </div>
+                                            <div class="col-sm-3">
+                                                <label class="form-label mb-1">Tarjetas por fila (si no pones cm)</label>
                                                 <input type="number" min="1" max="6" name="grid_cols" id="grid_cols" value="<?php echo (int) $tpl["grid_cols"]; ?>" class="form-control">
                                             </div>
                                         </div>
 
                                         <div id="cardStage" style="position:relative; display:inline-block; max-width:100%; border:1px solid #e5e7eb; user-select:none;">
                                             <img id="cardImg" src="<?php echo htmlspecialchars($tpl["image_path"]); ?>" style="display:block; max-width:100%; height:auto;" draggable="false">
-                                            <div id="nameBox" style="position:absolute; left:<?php echo htmlspecialchars($tpl["pos_x"]); ?>%; top:<?php echo htmlspecialchars($tpl["pos_y"]); ?>%; transform:translate(-50%,-50%); cursor:move; white-space:nowrap; font-weight:700; color:<?php echo htmlspecialchars($tpl["font_color"]); ?>; text-align:<?php echo htmlspecialchars($tpl["text_align"]); ?>;">Juan Pérez</div>
+                                            <div id="nameBox" style="position:absolute; left:<?php echo htmlspecialchars($tpl["pos_x"]); ?>%; top:<?php echo htmlspecialchars($tpl["pos_y"]); ?>%; transform:translate(-50%,-50%); cursor:move; white-space:nowrap; font-weight:700; color:<?php echo htmlspecialchars($tpl["font_color"]); ?>; text-align:<?php echo htmlspecialchars($tpl["text_align"]); ?>; font-family:<?php echo htmlspecialchars($CARD_FONTS[$tpl["font_family"]] ?? $CARD_FONTS['Arial']); ?>;">Juan Pérez</div>
                                         </div>
 
                                         <div class="mt-3">
@@ -360,6 +409,13 @@ function cards_filter_qs()
     var fontHidden = document.getElementById('font_pct');
     var colorInp = document.getElementById('font_color');
     var alignInp = document.getElementById('text_align');
+    var fontInp = document.getElementById('font_family');
+    function applyFamily() {
+        var opt = fontInp.options[fontInp.selectedIndex];
+        box.style.fontFamily = opt ? opt.getAttribute('data-stack') : 'Arial';
+    }
+    fontInp.addEventListener('change', applyFamily);
+    applyFamily();
 
     function applyFont() {
         var pct = parseFloat(fontRange.value) || 6;

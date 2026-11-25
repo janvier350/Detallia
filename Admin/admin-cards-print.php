@@ -5,6 +5,22 @@ require_once 'layouts/auth-guard.php';
 require_once 'layouts/helpers.php';
 require_role([1, 2, 3, 6]);
 
+$CARD_FONTS = [
+    'Arial'           => 'Arial, Helvetica, sans-serif',
+    'Georgia'         => 'Georgia, serif',
+    'Times New Roman' => "'Times New Roman', Times, serif",
+    'Verdana'         => 'Verdana, sans-serif',
+    'Courier New'     => "'Courier New', monospace",
+    'Alex Brush'      => "'Alex Brush', cursive",
+    'Great Vibes'     => "'Great Vibes', cursive",
+    'Dancing Script'  => "'Dancing Script', cursive",
+    'Pacifico'        => "'Pacifico', cursive",
+    'Satisfy'         => "'Satisfy', cursive",
+    'Sacramento'      => "'Sacramento', cursive",
+    'Parisienne'      => "'Parisienne', cursive",
+];
+$GFONTS_LINK = 'https://fonts.googleapis.com/css2?family=Alex+Brush&family=Great+Vibes&family=Dancing+Script:wght@400;700&family=Pacifico&family=Satisfy&family=Sacramento&family=Parisienne&display=swap';
+
 $template_id = (int) ($_GET["template_id"] ?? 0);
 $s = mysqli_prepare($link, "SELECT * FROM card_templates WHERE id=?");
 mysqli_stmt_bind_param($s, "i", $template_id);
@@ -42,12 +58,22 @@ if (is_file($imgFile)) {
 $aspect = $imgH / $imgW; // alto/ancho
 
 // Geometria A4 (vertical) en mm
-$cols = max(1, min(6, (int) $tpl["grid_cols"]));
 $pageW = 210; $margin = 8; $gap = 4;
 $content = $pageW - 2 * $margin;
-$cardW = ($content - ($cols - 1) * $gap) / $cols;
-$cardH = $cardW * $aspect;
+
+if ((float) $tpl["card_w_mm"] > 0 && (float) $tpl["card_h_mm"] > 0) {
+    // Tamaño fisico exacto: la hoja acomoda cuantas quepan por fila.
+    $cardW = (float) $tpl["card_w_mm"];
+    $cardH = (float) $tpl["card_h_mm"];
+    $cols  = max(1, (int) floor(($content + $gap) / ($cardW + $gap)));
+} else {
+    // Automatico: por "tarjetas por fila", conservando la proporcion de la imagen.
+    $cols  = max(1, min(6, (int) $tpl["grid_cols"]));
+    $cardW = ($content - ($cols - 1) * $gap) / $cols;
+    $cardH = $cardW * $aspect;
+}
 $fontMm = (float) $tpl["font_pct"] / 100 * $cardW;
+$fontStack = $CARD_FONTS[$tpl["font_family"] ?? 'Arial'] ?? $CARD_FONTS['Arial'];
 
 $imgUrl = htmlspecialchars($tpl["image_path"]);
 ?>
@@ -56,6 +82,9 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
 <head>
     <meta charset="utf-8">
     <title>Tarjetas — <?php echo htmlspecialchars($tpl["name"]); ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="<?php echo $GFONTS_LINK; ?>" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #e9ecef; }
@@ -75,6 +104,7 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
             transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700;
             font-size: <?php echo $fontMm; ?>mm; color: <?php echo htmlspecialchars($tpl["font_color"]); ?>;
             text-align: <?php echo htmlspecialchars($tpl["text_align"]); ?>;
+            font-family: <?php echo $fontStack; ?>;
         }
         @media print {
             body { background: #fff; }

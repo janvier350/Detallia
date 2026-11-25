@@ -89,7 +89,8 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
     <link href="<?php echo $GFONTS_LINK; ?>" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #e9ecef; }
+        body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #e9ecef;
+               -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .toolbar { padding: 10px; text-align: center; background: #fff; border-bottom: 1px solid #ddd; }
         .sheet {
             width: <?php echo $pageW; ?>mm; margin: 10px auto; background: #fff; padding: <?php echo $margin; ?>mm;
@@ -99,13 +100,17 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
         /* Tarjetas unidas con una fina linea de corte entre ellas */
         .card {
             width: <?php echo $cardW; ?>mm; height: <?php echo $cardH; ?>mm; position: relative;
-            background-image: url('<?php echo $imgUrl; ?>'); background-size: cover; background-position: center;
             page-break-inside: avoid; break-inside: avoid; overflow: hidden;
             outline: 0.2mm dashed #9aa0a6; outline-offset: -0.1mm;
         }
+        /* Imagen real (se imprime siempre, no depende de "graficos de fondo") */
+        .card .bg {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1;
+        }
         .card .nm {
             position: absolute; left: <?php echo (float) $tpl["pos_x"]; ?>%; top: <?php echo (float) $tpl["pos_y"]; ?>%;
-            transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700;
+            transform: translate(-50%, -50%); white-space: nowrap; font-weight: 700; z-index: 2;
             font-size: <?php echo $fontPt; ?>pt; color: <?php echo htmlspecialchars($tpl["font_color"]); ?>;
             text-align: <?php echo htmlspecialchars($tpl["text_align"]); ?>;
             font-family: <?php echo $fontStack; ?>;
@@ -136,6 +141,7 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
                     ? mb_convert_case(mb_strtolower($nm, 'UTF-8'), MB_CASE_TITLE, 'UTF-8')
                     : ucwords(strtolower($nm)); ?>
                 <div class="card">
+                    <img class="bg" src="<?php echo $imgUrl; ?>" alt="" decoding="async">
                     <div class="nm"><?php echo htmlspecialchars($display); ?></div>
                 </div>
             <?php endforeach; ?>

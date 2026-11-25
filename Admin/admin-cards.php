@@ -22,6 +22,43 @@ $CARD_FONTS = [
 ];
 $GFONTS_LINK = 'https://fonts.googleapis.com/css2?family=Alex+Brush&family=Great+Vibes&family=Dancing+Script:wght@400;700&family=Pacifico&family=Satisfy&family=Sacramento&family=Parisienne&display=swap';
 
+// Reduce el tamano de una imagen demasiado grande (ancho max) para que la
+// impresion de muchas tarjetas no se vuelva pesada. Requiere GD; si no esta,
+// no hace nada y deja la imagen original.
+function card_optimize_image($file, $mime, $maxW = 1600)
+{
+    if (!function_exists('imagecreatetruecolor')) return;
+    $info = @getimagesize($file);
+    if (!$info) return;
+    list($w, $h) = $info;
+    if ($w <= 0 || $h <= 0 || $w <= $maxW) return; // solo si es mas ancha que el limite
+    switch ($mime) {
+        case 'image/jpeg': $src = @imagecreatefromjpeg($file); break;
+        case 'image/png':  $src = @imagecreatefrompng($file); break;
+        case 'image/webp': $src = function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($file) : false; break;
+        case 'image/gif':  $src = @imagecreatefromgif($file); break;
+        default: return;
+    }
+    if (!$src) return;
+    $scale = $maxW / $w;
+    $nw = (int) round($w * $scale);
+    $nh = (int) round($h * $scale);
+    $dst = imagecreatetruecolor($nw, $nh);
+    if ($mime === 'image/png' || $mime === 'image/gif') {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+    }
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    switch ($mime) {
+        case 'image/jpeg': imagejpeg($dst, $file, 82); break;
+        case 'image/png':  imagepng($dst, $file, 6); break;
+        case 'image/webp': if (function_exists('imagewebp')) imagewebp($dst, $file, 82); break;
+        case 'image/gif':  imagegif($dst, $file); break;
+    }
+    imagedestroy($dst);
+    imagedestroy($src);
+}
+
 $success_msg = "";
 $error_msg   = "";
 if (isset($_SESSION["flash_success"])) { $success_msg = $_SESSION["flash_success"]; unset($_SESSION["flash_success"]); }
@@ -47,6 +84,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "uploa
             $fn = 'card_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
             if (move_uploaded_file($_FILES["image"]["tmp_name"], $dir . $fn)) {
                 $path = 'assets/images/cards/' . $fn;
+                // Redimensionar/comprimir para que la impresion de muchas tarjetas no se cuelgue.
+                @card_optimize_image($dir . $fn, $ftype, 1600);
                 $by = (int) $_SESSION["id"];
                 // Tamaño por defecto: ancho 90 mm y alto segun la proporcion de la imagen.
                 $cw = 90.0; $ch = 60.0;
@@ -398,7 +437,8 @@ function cards_filter_qs()
 
                                         <div class="mt-3">
                                             <button type="submit" class="btn btn-primary"><i class="mdi mdi-content-save me-1"></i>Guardar posición</button>
-                                            <span class="text-muted small ms-2">Arrastra el nombre a su lugar y guarda. Luego usa "Generar e imprimir".</span>
+                                            <a href="admin-cards-print.php?<?php echo http_build_query(array_merge(["template_id" => $tpl["id"]], cards_filter_qs())); ?>" target="_blank" class="btn btn-soft-secondary ms-1"><i class="mdi mdi-eye me-1"></i>Vista previa</a>
+                                            <span class="text-muted small ms-2">Guarda primero, luego "Vista previa" abre la hoja A4.</span>
                                         </div>
                                     </form>
                                 <?php endif; ?>

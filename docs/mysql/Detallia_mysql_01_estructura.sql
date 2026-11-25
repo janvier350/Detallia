@@ -524,6 +524,22 @@ CREATE TABLE IF NOT EXISTS `route_deliveries` (
   KEY `idx_route_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `card_templates` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(150) NOT NULL,
+  `image_path` VARCHAR(255) NOT NULL,
+  `pos_x` DECIMAL(5,2) NOT NULL DEFAULT 50.00,
+  `pos_y` DECIMAL(5,2) NOT NULL DEFAULT 50.00,
+  `font_pct` DECIMAL(5,2) NOT NULL DEFAULT 6.00,
+  `font_color` VARCHAR(20) NOT NULL DEFAULT '#1b5e20',
+  `text_align` VARCHAR(10) NOT NULL DEFAULT 'center',
+  `grid_cols` INT NOT NULL DEFAULT 2,
+  `created_by` INT DEFAULT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_cardtpl_user` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =====================================================================
 -- LLAVES FORANEAS (declaradas en el proyecto)
 -- =====================================================================
@@ -624,6 +640,9 @@ ALTER TABLE `route_deliveries`
   ADD CONSTRAINT `fk_route_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_route_carrier` FOREIGN KEY (`carrier_id`) REFERENCES `carriers` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_route_user` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `card_templates`
+  ADD CONSTRAINT `fk_cardtpl_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 SET FOREIGN_KEY_CHECKS = 1;
 

@@ -407,6 +407,12 @@ $pendingRequestsCount = count($pendingRequests);
                         <span>Rutas</span>
                     </a>
                 </li>
+                <li>
+                    <a href="admin-cards.php">
+                        <i data-feather="credit-card"></i>
+                        <span>Tarjetas</span>
+                    </a>
+                </li>
                 <?php endif; ?>
 
                 <li>

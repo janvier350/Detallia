@@ -58,7 +58,7 @@ if (is_file($imgFile)) {
 $aspect = $imgH / $imgW; // alto/ancho
 
 // Geometria A4 (vertical) en mm
-$pageW = 210; $margin = 8; $gap = 4;
+$pageW = 210; $margin = 8; $gap = 0; // tarjetas unidas (corte compartido)
 $content = $pageW - 2 * $margin;
 
 if ((float) $tpl["card_w_mm"] > 0 && (float) $tpl["card_h_mm"] > 0) {
@@ -92,12 +92,14 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
         .sheet {
             width: 210mm; margin: 10px auto; background: #fff; padding: <?php echo $margin; ?>mm;
             display: grid; grid-template-columns: repeat(<?php echo $cols; ?>, <?php echo $cardW; ?>mm);
-            gap: <?php echo $gap; ?>mm; justify-content: center;
+            gap: 0; justify-content: center;
         }
+        /* Tarjetas unidas con una fina linea de corte entre ellas */
         .card {
             width: <?php echo $cardW; ?>mm; height: <?php echo $cardH; ?>mm; position: relative;
             background-image: url('<?php echo $imgUrl; ?>'); background-size: cover; background-position: center;
             page-break-inside: avoid; break-inside: avoid; overflow: hidden;
+            outline: 0.2mm dashed #9aa0a6; outline-offset: -0.1mm;
         }
         .card .nm {
             position: absolute; left: <?php echo (float) $tpl["pos_x"]; ?>%; top: <?php echo (float) $tpl["pos_y"]; ?>%;
@@ -126,9 +128,13 @@ $imgUrl = htmlspecialchars($tpl["image_path"]);
         <?php if (empty($names)): ?>
             <p style="padding:20px;">No hay clientes para los filtros seleccionados.</p>
         <?php else: ?>
-            <?php foreach ($names as $nm): ?>
+            <?php foreach ($names as $nm):
+                // Pasar de MAYUSCULAS a tipo titulo (solo iniciales en mayuscula)
+                $display = function_exists('mb_convert_case')
+                    ? mb_convert_case(mb_strtolower($nm, 'UTF-8'), MB_CASE_TITLE, 'UTF-8')
+                    : ucwords(strtolower($nm)); ?>
                 <div class="card">
-                    <div class="nm"><?php echo htmlspecialchars($nm); ?></div>
+                    <div class="nm"><?php echo htmlspecialchars($display); ?></div>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>

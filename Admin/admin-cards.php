@@ -331,7 +331,7 @@ function cards_filter_qs()
 
                                         <div class="row g-2 mb-3">
                                             <div class="col-sm-3">
-                                                <label class="form-label mb-1">Tamaño de letra</label>
+                                                <label class="form-label mb-1">Tamaño de letra: <strong id="font_pct_val"><?php echo htmlspecialchars(number_format((float) $tpl["font_pct"], 1)); ?></strong></label>
                                                 <input type="range" min="1" max="20" step="0.5" value="<?php echo htmlspecialchars($tpl["font_pct"]); ?>" id="font_pct_range" class="form-range">
                                                 <input type="hidden" name="font_pct" id="font_pct" value="<?php echo htmlspecialchars($tpl["font_pct"]); ?>">
                                             </div>
@@ -417,9 +417,11 @@ function cards_filter_qs()
     fontInp.addEventListener('change', applyFamily);
     applyFamily();
 
+    var fontVal = document.getElementById('font_pct_val');
     function applyFont() {
         var pct = parseFloat(fontRange.value) || 6;
         fontHidden.value = pct;
+        if (fontVal) { fontVal.textContent = pct.toFixed(1); }
         // tamaño en px proporcional al ancho mostrado de la imagen
         box.style.fontSize = (pct / 100 * img.clientWidth) + 'px';
     }

@@ -170,6 +170,7 @@ $articles         = mysqli_query($link, "SELECT a.id, a.name, a.unit, b.name AS 
     <title><?php echo $kit["id"] ? "Editar kit" : "Nuevo kit"; ?> | Detallia</title>
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
+    <link rel="stylesheet" href="assets/libs/choices.js/public/assets/styles/choices.min.css">
 
 </head>
 
@@ -328,6 +329,7 @@ $articles         = mysqli_query($link, "SELECT a.id, a.name, a.unit, b.name AS 
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 <script src="assets/js/app.js"></script>
+<script src="assets/libs/choices.js/public/assets/scripts/choices.min.js"></script>
 
 <script>
 // Vista previa de imagen
@@ -389,6 +391,18 @@ function addRow(item) {
     }
     updateBrand();
     select.addEventListener('change', updateBrand);
+
+    // Busqueda rapida en el select de articulo
+    if (window.Choices) {
+        new Choices(select, {
+            searchEnabled: true,
+            shouldSort: false,
+            itemSelectText: '',
+            searchResultLimit: 50,
+            noResultsText: 'Sin resultados',
+            searchPlaceholderValue: 'Buscar articulo...'
+        });
+    }
 
     tr.querySelector('.remove-row').addEventListener('click', function () { tr.remove(); });
 }

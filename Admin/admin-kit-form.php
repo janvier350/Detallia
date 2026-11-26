@@ -171,6 +171,15 @@ $articles         = mysqli_query($link, "SELECT a.id, a.name, a.unit, b.name AS 
     <?php include 'layouts/head.php'; ?>
     <?php include 'layouts/head-style.php'; ?>
     <link rel="stylesheet" href="assets/libs/choices.js/public/assets/styles/choices.min.css">
+    <style>
+        /* Que el buscador del select no se recorte dentro de la tabla */
+        .kit-items-wrap { overflow: visible; }
+        .kit-items-wrap td { overflow: visible; }
+        .kit-items-wrap .choices { margin-bottom: 0; }
+        .kit-items-wrap .choices__list--dropdown,
+        .kit-items-wrap .choices__list[aria-expanded] { z-index: 1060; }
+        .kit-items-wrap .choices.is-open { position: relative; z-index: 1060; }
+    </style>
 
 </head>
 
@@ -289,7 +298,7 @@ $articles         = mysqli_query($link, "SELECT a.id, a.name, a.unit, b.name AS 
                                     <hr>
                                     <h5 class="mb-3">Articulos del kit</h5>
 
-                                    <div class="table-responsive">
+                                    <div class="table-responsive kit-items-wrap">
                                         <table class="table table-bordered align-middle" id="itemsTable">
                                             <thead class="table-light">
                                                 <tr>
